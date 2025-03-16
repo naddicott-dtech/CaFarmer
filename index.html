@@ -349,31 +349,46 @@
     });
     </script>
     <script>
-      // Simple check for button functionality
+      // Enhanced check for button functionality
       document.addEventListener('DOMContentLoaded', function() {
         console.log('DOM fully loaded');
-        
+
         const regularGameBtn = document.getElementById('regular-game-btn');
         const testModeBtn = document.getElementById('test-mode-btn');
-        
+        const runSelectedTestsBtn = document.getElementById('run-selected-tests-btn'); // Add this line
+
         console.log('Regular game button:', regularGameBtn);
         console.log('Test mode button:', testModeBtn);
-        
+        console.log('Run Selected Tests button:', runSelectedTestsBtn); // Add this line
+
         if (regularGameBtn) {
           regularGameBtn.addEventListener('click', function() {
-            console.log('Regular game button clicked!');
-            alert('Regular game button was clicked');
+            console.log('Regular game button clicked! - Event Listener Firing');
+            alert('Regular game button was clicked - event listener is working!'); // Visual confirmation
           });
+        } else {
+          console.error('Regular game button NOT FOUND!'); // Check if the button is even found
         }
-        
+
         if (testModeBtn) {
           testModeBtn.addEventListener('click', function() {
-            console.log('Test mode button clicked!');
-            alert('Test mode button was clicked');
+            console.log('Test mode button clicked! - Event Listener Firing');
+            alert('Test mode button was clicked - event listener is working!'); // Visual confirmation
           });
+        } else {
+          console.error('Test mode button NOT FOUND!'); // Check if the button is even found
+        }
+
+        if (runSelectedTestsBtn) { // Add this block
+          runSelectedTestsBtn.addEventListener('click', function() {
+            console.log('Run Selected Tests button clicked! - Event Listener Firing');
+            alert('Run Selected Tests button was clicked - event listener is working!'); // Visual confirmation
+          });
+        } else {
+          console.error('Run Selected Tests button NOT FOUND!'); // Check if the button is even found
         }
       });
-    </script>    
+    </script> 
     <script type="module" src="scripts/main.js"></script>
 </body>
 </html>
