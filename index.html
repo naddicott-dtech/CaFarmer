@@ -207,8 +207,9 @@
     <div id="debug-panel" class="debug-panel">
         <h3>Debug Information</h3>
         <div id="debug-content"></div>
-        </div>
-    <!-- Add this just before your main script (before the line with script type="module" src="scripts/main.js") -->
+    </div>
+    
+    <!-- Debug logging script -->
     <script>
     // Create visual error display for debugging
     (function() {
@@ -348,47 +349,10 @@
         }
     });
     </script>
-    <script>
-      // Enhanced check for button functionality
-      document.addEventListener('DOMContentLoaded', function() {
-        console.log('DOM fully loaded');
-
-        const regularGameBtn = document.getElementById('regular-game-btn');
-        const testModeBtn = document.getElementById('test-mode-btn');
-        const runSelectedTestsBtn = document.getElementById('run-selected-tests-btn'); // Add this line
-
-        console.log('Regular game button:', regularGameBtn);
-        console.log('Test mode button:', testModeBtn);
-        console.log('Run Selected Tests button:', runSelectedTestsBtn); // Add this line
-
-        if (regularGameBtn) {
-          regularGameBtn.addEventListener('click', function() {
-            console.log('Regular game button clicked! - Event Listener Firing');
-            alert('Regular game button was clicked - event listener is working!'); // Visual confirmation
-          });
-        } else {
-          console.error('Regular game button NOT FOUND!'); // Check if the button is even found
-        }
-
-        if (testModeBtn) {
-          testModeBtn.addEventListener('click', function() {
-            console.log('Test mode button clicked! - Event Listener Firing');
-            alert('Test mode button was clicked - event listener is working!'); // Visual confirmation
-          });
-        } else {
-          console.error('Test mode button NOT FOUND!'); // Check if the button is even found
-        }
-
-        if (runSelectedTestsBtn) { // Add this block
-          runSelectedTestsBtn.addEventListener('click', function() {
-            console.log('Run Selected Tests button clicked! - Event Listener Firing');
-            alert('Run Selected Tests button was clicked - event listener is working!'); // Visual confirmation
-          });
-        } else {
-          console.error('Run Selected Tests button NOT FOUND!'); // Check if the button is even found
-        }
-      });
-    </script> 
+    
+    <!-- REMOVE THE TESTING SCRIPT HERE - This conflicts with main.js -->
+    
+    <!-- Keep only the module script -->
     <script type="module" src="scripts/main.js"></script>
 </body>
 </html>
