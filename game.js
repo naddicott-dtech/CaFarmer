@@ -2182,6 +2182,14 @@
         }
                 
         applyDroughtEvent(event) {
+            // Skip drought effects if water reserve is already too low
+            if (this.waterReserve <= 5) {
+                if (this.testMode) {
+                    this.debugLog("Drought event skipped - water reserves already critically low", 0);
+                }
+                return; // Skip processing this drought entirely
+            }
+        
             // Use the event's severity if available, otherwise calculate it
             const severity = event.severity || Math.min(0.7, 0.3 + (this.climate.droughtProbability * 2));
         
@@ -2191,25 +2199,25 @@
                 protection = this.getTechEffectValue('droughtResistance', 1.0);
             }
         
-            // Reduce water levels - use smaller values to make drought more gradual
+            // Reduce water levels - MUCH more gradually
             for (let row = 0; row < this.gridSize; row++) {
                 for (let col = 0; col < this.gridSize; col++) {
                     const cell = this.grid[row][col];
         
-                    // Reduce water decrease to be more gradual - 5% per day instead of 20%
-                    const waterDecrease = Math.round(5 * severity * protection);
+                    // Reduce water decrease to be very gradual - only 2% per day 
+                    const waterDecrease = Math.round(2 * severity * protection);
                     cell.waterLevel = Math.max(0, cell.waterLevel - waterDecrease);
         
-                    // Impact on expected yield - also more gradual
+                    // Very minimal impact on expected yield
                     if (cell.crop.id !== 'empty') {
-                        const yieldImpact = Math.round(3 * severity * protection);
+                        const yieldImpact = Math.round(1 * severity * protection);
                         cell.expectedYield = Math.max(10, cell.expectedYield - yieldImpact);
                     }
                 }
             }
         
-            // Decrease water reserve - more gradually (7% per day instead of 25%)
-            const waterReserveDecrease = Math.round(7 * severity * protection);
+            // Decrease water reserve VERY gradually (only 3% per day maximum)
+            const waterReserveDecrease = Math.min(3, Math.round(3 * severity * protection));
             this.waterReserve = Math.max(0, this.waterReserve - waterReserveDecrease);
         
             // Track climate events in test metrics
@@ -2217,7 +2225,7 @@
                 this.testMetrics.climateEvents.drought++;
                 this.debugLog(`Drought event (severity: ${severity.toFixed(2)}) - Water reserve: ${this.waterReserve}%`);
             } else {
-                this.addEvent(`Drought conditions have begun! Water levels are dropping rapidly.`, true);
+                this.addEvent(`Drought conditions affecting your farm. Water levels are dropping slowly.`, true);
         
                 // If protection technology is active
                 if (protection < 1.0) {
@@ -2225,8 +2233,8 @@
                 }
             }
         
-            // Schedule drought to continue
-            if (event.duration > 1) {
+            // Schedule drought to continue only if water reserve isn't too low
+            if (event.duration > 1 && this.waterReserve > 10) {
                 // Check if this event already exists in the pending events to avoid duplication
                 const nextDay = this.day + 1;
                 const existingEventIndex = this.pendingEvents.findIndex(e => 
