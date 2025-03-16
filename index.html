@@ -207,8 +207,36 @@
     <div id="debug-panel" class="debug-panel">
         <h3>Debug Information</h3>
         <div id="debug-content"></div>
-    </div>
-
+        </div>
+    <!-- Add this right before your script tag for main.js -->
+    <script>
+    // Error handling and logging
+    window.onerror = function(message, source, lineno, colno, error) {
+        console.error("Error captured:", message, "at", source, ":", lineno, ":", colno);
+        
+        // Create error display on page
+        let errorDisplay = document.getElementById('error-display');
+        if (!errorDisplay) {
+            errorDisplay = document.createElement('div');
+            errorDisplay.id = 'error-display';
+            errorDisplay.style.position = 'fixed';
+            errorDisplay.style.bottom = '10px';
+            errorDisplay.style.left = '10px';
+            errorDisplay.style.backgroundColor = 'rgba(255, 0, 0, 0.8)';
+            errorDisplay.style.color = 'white';
+            errorDisplay.style.padding = '10px';
+            errorDisplay.style.borderRadius = '5px';
+            errorDisplay.style.zIndex = '9999';
+            document.body.appendChild(errorDisplay);
+        }
+        
+        const errorMsg = document.createElement('div');
+        errorMsg.textContent = `${message} (${source}:${lineno})`;
+        errorDisplay.appendChild(errorMsg);
+        
+        return false;
+    };
+    </script>
     <script type="module" src="scripts/main.js"></script>
 </body>
 </html>
