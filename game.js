@@ -2143,40 +2143,41 @@
                 this.addEvent(`Technology news: ${event.name} event announced.`);
             }
 
-            processPendingEvents() {
-                // Process any events that should occur today
-                const activeEvents = this.pendingEvents.filter(event => event.day === this.day);
-
-                activeEvents.forEach(event => {
-                    switch (event.type) {
-                        case 'rain':
-                            this.applyRainEvent(event);
-                            break;
-                        case 'drought':
-                            this.applyDroughtEvent(event);
-                            break;
-                        case 'heatwave':
-                            this.applyHeatwaveEvent(event);
-                            break;
-                        case 'frost':
-                            this.applyFrostEvent(event);
-                            break;
-                        case 'market':
-                            this.applyMarketEvent(event);
-                            break;
-                        case 'policy':
-                            this.applyPolicyEvent(event);
-                            break;
-                        case 'technology':
-                            this.applyTechnologyEvent(event);
-                            break;
-                    }
-                });
-
-                // Remove processed events
-                this.pendingEvents = this.pendingEvents.filter(event => event.day !== this.day);
-            }
-
+        // Also, update the processPendingEvents function to ensure events are properly removed:
+        processPendingEvents() {
+            // Process any events that should occur today
+            const activeEvents = this.pendingEvents.filter(event => event.day === this.day);
+        
+            activeEvents.forEach(event => {
+                switch (event.type) {
+                    case 'rain':
+                        this.applyRainEvent(event);
+                        break;
+                    case 'drought':
+                        this.applyDroughtEvent(event);
+                        break;
+                    case 'heatwave':
+                        this.applyHeatwaveEvent(event);
+                        break;
+                    case 'frost':
+                        this.applyFrostEvent(event);
+                        break;
+                    case 'market':
+                        this.applyMarketEvent(event);
+                        break;
+                    case 'policy':
+                        this.applyPolicyEvent(event);
+                        break;
+                    case 'technology':
+                        this.applyTechnologyEvent(event);
+                        break;
+                }
+            });
+        
+            // Remove processed events
+            this.pendingEvents = this.pendingEvents.filter(event => event.day !== this.day);
+        }
+                
             applyRainEvent(event) {
                 const isHeavy = event.intensity === 'heavy';
 
@@ -2206,61 +2207,69 @@
                 this.addEvent(message);
             }
 
-            applyDroughtEvent(event) {
-                // Start drought conditions
-                const severity = Math.min(1.0, 0.5 + (this.climate.droughtProbability * 5));
-
-                // Apply drought resistance technology if available
-                let protection = 1.0;
-                if (this.hasTechnology('drought_resistant')) {
-                    protection = this.getTechEffectValue('droughtResistance', 1.0);
-                }
-
-                // Reduce water levels
-                for (let row = 0; row < this.gridSize; row++) {
-                    for (let col = 0; col < this.gridSize; col++) {
-                        const cell = this.grid[row][col];
-
-                        // Water decrease based on severity and protection
-                        const waterDecrease = Math.round(20 * severity * protection);
-                        cell.waterLevel = Math.max(0, cell.waterLevel - waterDecrease);
-
-                        // Impact on expected yield
-                        if (cell.crop.id !== 'empty') {
-                            const yieldImpact = Math.round(15 * severity * protection);
-                            cell.expectedYield = Math.max(10, cell.expectedYield - yieldImpact);
-                        }
+        // Find and replace the applyDroughtEvent function with this updated version:
+        applyDroughtEvent(event) {
+            // Start drought conditions
+            const severity = Math.min(1.0, 0.5 + (this.climate.droughtProbability * 5));
+        
+            // Apply drought resistance technology if available
+            let protection = 1.0;
+            if (this.hasTechnology('drought_resistant')) {
+                protection = this.getTechEffectValue('droughtResistance', 1.0);
+            }
+        
+            // Reduce water levels
+            for (let row = 0; row < this.gridSize; row++) {
+                for (let col = 0; col < this.gridSize; col++) {
+                    const cell = this.grid[row][col];
+        
+                    // Water decrease based on severity and protection
+                    const waterDecrease = Math.round(20 * severity * protection);
+                    cell.waterLevel = Math.max(0, cell.waterLevel - waterDecrease);
+        
+                    // Impact on expected yield
+                    if (cell.crop.id !== 'empty') {
+                        const yieldImpact = Math.round(15 * severity * protection);
+                        cell.expectedYield = Math.max(10, cell.expectedYield - yieldImpact);
                     }
                 }
-
-                // Decrease water reserve
-                this.waterReserve = Math.max(0, this.waterReserve - Math.round(25 * severity * protection));
-
-                // Track climate events in test metrics
-                if (this.testMode) {
-                    this.testMetrics.climateEvents.drought++;
-                    this.debugLog(`Drought event (severity: ${severity.toFixed(2)}) - Water reserve: ${this.waterReserve}%`);
-                } else {
-                    this.addEvent(`Drought conditions have begun! Water levels are dropping rapidly.`, true);
-
-                    // If protection technology is active
-                    if (protection < 1.0) {
-                        this.addEvent(`Your drought-resistant varieties are helping mitigate the impact.`);
-                    }
+            }
+        
+            // Decrease water reserve
+            this.waterReserve = Math.max(0, this.waterReserve - Math.round(25 * severity * protection));
+        
+            // Track climate events in test metrics
+            if (this.testMode) {
+                this.testMetrics.climateEvents.drought++;
+                this.debugLog(`Drought event (severity: ${severity.toFixed(2)}) - Water reserve: ${this.waterReserve}%`);
+            } else {
+                this.addEvent(`Drought conditions have begun! Water levels are dropping rapidly.`, true);
+        
+                // If protection technology is active
+                if (protection < 1.0) {
+                    this.addEvent(`Your drought-resistant varieties are helping mitigate the impact.`);
                 }
-
-                // Schedule drought to continue
-                if (event.duration > 1) {
+            }
+        
+            // Schedule drought to continue
+            if (event.duration > 1) {
+                // Check if this event already exists in the pending events to avoid duplication
+                const existingEventIndex = this.pendingEvents.findIndex(e => 
+                    e.type === event.type && e.day === this.day + 1);
+                
+                // Only add the next day's event if it doesn't already exist
+                if (existingEventIndex === -1) {
                     this.pendingEvents.push({
                         ...event,
                         day: this.day + 1,
                         duration: event.duration - 1
                     });
-                } else if (!this.testMode) {
-                    this.addEvent(`The drought has ended.`);
                 }
+            } else if (!this.testMode) {
+                this.addEvent(`The drought has ended.`);
             }
-
+        }
+                
             applyHeatwaveEvent(event) {
                 // Start heatwave conditions
                 const severity = 0.8 + (this.climate.heatwaveProbability * 2);
