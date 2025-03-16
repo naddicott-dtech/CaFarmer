@@ -1858,41 +1858,71 @@
                 return baseRate * waterFactor * soilFactor * fertilizerFactor;
             }
 
-            advanceSeason() {
-                // Rotate seasons
-                const seasons = ['Spring', 'Summer', 'Fall', 'Winter'];
-                const currentIndex = seasons.indexOf(this.season);
-                this.season = seasons[(currentIndex + 1) % 4];
-
-                this.addEvent(`Season changed to ${this.season}`);
-
-                // Fluctuate market prices
-                this.fluctuateMarketPrices();
-
-                // Season-specific events
-                switch (this.season) {
-                    case 'Summer':
-                        if (Math.random() < 0.3) {
-                            this.scheduleDrought();
-                        }
-                        break;
-                    case 'Winter':
-                        if (Math.random() < 0.3) {
-                            this.scheduleFrost();
-                        }
-                        break;
-                    case 'Spring':
-                        if (Math.random() < 0.3) {
-                            this.scheduleRain();
-                        }
-                        break;
-                }
-
-                // Apply technology effects
-                if (this.hasTechnology('greenhouse') && (this.season === 'Winter' || this.season === 'Summer')) {
-                    this.addEvent('Greenhouse technology is protecting crops from seasonal extremes.');
-                }
+        // Simple fix for advanceSeason to add water recovery in Spring
+        advanceSeason() {
+            // Rotate seasons
+            const seasons = ['Spring', 'Summer', 'Fall', 'Winter'];
+            const currentIndex = seasons.indexOf(this.season);
+            this.season = seasons[(currentIndex + 1) % 4];
+        
+            this.addEvent(`Season changed to ${this.season}`);
+        
+            // Fluctuate market prices
+            this.fluctuateMarketPrices();
+        
+            // Season-specific events
+            switch (this.season) {
+                case 'Summer':
+                    if (Math.random() < 0.3) {
+                        this.scheduleDrought();
+                    }
+                    if (Math.random() < 0.4) {
+                        this.scheduleHeatwave();
+                    }
+                    break;
+                case 'Winter':
+                    if (Math.random() < 0.3) {
+                        this.scheduleFrost();
+                    }
+                    // Winter water recovery
+                    const winterRecovery = Math.floor(5 + Math.random() * 10); // 5-15% recovery
+                    this.waterReserve = Math.min(100, this.waterReserve + winterRecovery);
+                    if (winterRecovery > 5) {
+                        this.addEvent(`Winter precipitation has replenished ${winterRecovery}% of your water reserves.`);
+                    }
+                    break;
+                case 'Spring':
+                    if (Math.random() < 0.4) {
+                        this.scheduleRain();
+                    }
+                    
+                    // Spring has the most significant water recovery
+                    const springRecovery = Math.floor(10 + Math.random() * 15); // 10-25% recovery
+                    this.waterReserve = Math.min(100, this.waterReserve + springRecovery);
+                    this.addEvent(`Spring rains have replenished ${springRecovery}% of your water reserves.`);
+                    break;
+                case 'Fall':
+                    if (Math.random() < 0.3) {
+                        this.scheduleRain();
+                    }
+                    if (Math.random() < 0.2) {
+                        this.scheduleHeatwave(); // Possible late season heatwaves
+                    }
+                    
+                    // Modest fall water recovery
+                    const fallRecovery = Math.floor(5 + Math.random() * 10); // 5-15% recovery
+                    this.waterReserve = Math.min(100, this.waterReserve + fallRecovery);
+                    if (fallRecovery > 5) {
+                        this.addEvent(`Fall weather has helped replenish ${fallRecovery}% of your water reserves.`);
+                    }
+                    break;
             }
+        
+            // Apply technology effects
+            if (this.hasTechnology('greenhouse') && (this.season === 'Winter' || this.season === 'Summer')) {
+                this.addEvent('Greenhouse technology is protecting crops from seasonal extremes.');
+            }
+        }
 
             advanceYear() {
                 this.year++;
@@ -2062,17 +2092,18 @@
             this.addEvent(`Climate alert: Drought conditions forming in the region.`, true);
         }
 
-            scheduleHeatwave() {
-                const duration = Math.floor(5 + Math.random() * 10);
-
-                this.pendingEvents.push({
-                    type: 'heatwave',
-                    duration,
-                    day: this.day + Math.floor(Math.random() * 10)
-                });
-
-                this.addEvent(`Weather forecast: Extreme heat expected soon.`, true);
-            }
+        scheduleHeatwave() {
+            // Heatwaves are shorter but more intense than droughts
+            const duration = Math.floor(2 + Math.random() * 4); // 2-5 days (shorter than drought)
+            
+            this.pendingEvents.push({
+                type: 'heatwave',
+                duration,
+                day: this.day + Math.floor(Math.random() * 5) // More immediate than drought
+            });
+        
+            this.addEvent(`Weather forecast: Extreme heat expected soon.`, true);
+        }
 
             scheduleFrost() {
                 this.pendingEvents.push({
@@ -2222,49 +2253,66 @@
             }
         }
         
-        // Also make sure to add the function to handle heatwave events
+        //  handle heatwave events
         applyHeatwaveEvent(event) {
+            // Skip heatwave effects if water reserve is already too low
+            if (this.waterReserve <= 5) {
+                if (this.testMode) {
+                    this.debugLog("Heatwave event skipped - water reserves already critically low", 0);
+                }
+                return; // Skip processing this heatwave entirely
+            }
+        
             // Apply heat resistance technology if available
             let protection = 1.0;
             if (this.hasTechnology('silvopasture')) {
                 protection = this.getTechEffectValue('heatResistance', 1.0);
+            } else if (this.hasTechnology('greenhouse')) {
+                protection = this.getTechEffectValue('weatherProtection', 1.0);
             }
         
-            // Impact on crops and water levels
+            // Heatwaves primarily damage crops based on heat sensitivity
+            // and increase water evaporation as a secondary effect
             for (let row = 0; row < this.gridSize; row++) {
                 for (let col = 0; col < this.gridSize; col++) {
                     const cell = this.grid[row][col];
         
-                    // Increase water evaporation
-                    const waterLoss = Math.round(10 * protection);
+                    // Water evaporation is modest but present
+                    const waterLoss = Math.round(2 * protection);
                     cell.waterLevel = Math.max(0, cell.waterLevel - waterLoss);
         
-                    // Impact on expected yield based on crop heat sensitivity
+                    // The main impact of heatwaves is on crop health/yield
                     if (cell.crop.id !== 'empty') {
-                        const heatImpact = Math.round(10 * cell.crop.heatSensitivity * protection);
+                        // Use the crop's specific heat sensitivity
+                        const heatImpact = Math.round(5 * cell.crop.heatSensitivity * protection);
                         cell.expectedYield = Math.max(10, cell.expectedYield - heatImpact);
                     }
                 }
             }
         
-            // Decrease water reserve
-            this.waterReserve = Math.max(0, this.waterReserve - Math.round(10 * protection));
+            // Modest impact on water reserve (less than drought)
+            const waterReserveDecrease = Math.min(3, Math.round(3 * protection));
+            this.waterReserve = Math.max(0, this.waterReserve - waterReserveDecrease);
         
             // Track climate events in test metrics
             if (this.testMode) {
                 this.testMetrics.climateEvents.heatwave++;
                 this.debugLog(`Heatwave event - Water reserve: ${this.waterReserve}%, impact reduced: ${protection < 1.0}`);
             } else {
-                this.addEvent(`Heatwave conditions! Increased water evaporation and stress on crops.`, true);
+                this.addEvent(`Heatwave conditions! Crops are experiencing heat stress and growth is slowed.`, true);
         
                 // If protection technology is active
                 if (protection < 1.0) {
-                    this.addEvent(`Your silvopasture technique is providing shade and reducing heat damage.`);
+                    if (this.hasTechnology('silvopasture')) {
+                        this.addEvent(`Your silvopasture technique is providing shade and reducing heat damage.`);
+                    } else if (this.hasTechnology('greenhouse')) {
+                        this.addEvent(`Your greenhouse technology is providing climate control against the heat.`);
+                    }
                 }
             }
         
-            // Schedule heatwave to continue
-            if (event.duration > 1) {
+            // Schedule heatwave to continue but with shorter duration than drought
+            if (event.duration > 1 && this.waterReserve > 10) {
                 // Check if this event already exists to prevent duplication
                 const nextDay = this.day + 1;
                 const existingEventIndex = this.pendingEvents.findIndex(e => 
