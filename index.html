@@ -208,34 +208,145 @@
         <h3>Debug Information</h3>
         <div id="debug-content"></div>
         </div>
-    <!-- Add this right before your script tag for main.js -->
+    <!-- Add this just before your main script (before the line with script type="module" src="scripts/main.js") -->
     <script>
-    // Error handling and logging
-    window.onerror = function(message, source, lineno, colno, error) {
-        console.error("Error captured:", message, "at", source, ":", lineno, ":", colno);
+    // Create visual error display for debugging
+    (function() {
+        // Override console methods to display on page
+        const originalConsole = {
+            log: console.log,
+            warn: console.warn,
+            error: console.error
+        };
         
-        // Create error display on page
-        let errorDisplay = document.getElementById('error-display');
-        if (!errorDisplay) {
-            errorDisplay = document.createElement('div');
-            errorDisplay.id = 'error-display';
-            errorDisplay.style.position = 'fixed';
-            errorDisplay.style.bottom = '10px';
-            errorDisplay.style.left = '10px';
-            errorDisplay.style.backgroundColor = 'rgba(255, 0, 0, 0.8)';
-            errorDisplay.style.color = 'white';
-            errorDisplay.style.padding = '10px';
-            errorDisplay.style.borderRadius = '5px';
-            errorDisplay.style.zIndex = '9999';
-            document.body.appendChild(errorDisplay);
+        // Create a visual log panel
+        const createLogPanel = () => {
+            const panel = document.createElement('div');
+            panel.id = 'debug-log-panel';
+            panel.style.position = 'fixed';
+            panel.style.bottom = '10px';
+            panel.style.right = '10px';
+            panel.style.width = '400px';
+            panel.style.maxHeight = '300px';
+            panel.style.overflowY = 'auto';
+            panel.style.backgroundColor = 'rgba(0,0,0,0.8)';
+            panel.style.color = '#00ff00';
+            panel.style.fontFamily = 'monospace';
+            panel.style.fontSize = '12px';
+            panel.style.padding = '10px';
+            panel.style.borderRadius = '5px';
+            panel.style.zIndex = '9999';
+            
+            // Add controls
+            const controls = document.createElement('div');
+            controls.style.marginBottom = '10px';
+            controls.innerHTML = `
+                <button id="clear-log" style="background:#333;color:white;border:none;padding:3px 8px;margin-right:5px;">Clear</button>
+                <button id="close-log" style="background:#333;color:white;border:none;padding:3px 8px;">Close</button>
+            `;
+            panel.appendChild(controls);
+            
+            // Add log container
+            const logContainer = document.createElement('div');
+            logContainer.id = 'log-container';
+            panel.appendChild(logContainer);
+            
+            // Add to document
+            document.body.appendChild(panel);
+            
+            // Add event listeners for controls
+            document.getElementById('clear-log').addEventListener('click', () => {
+                document.getElementById('log-container').innerHTML = '';
+            });
+            
+            document.getElementById('close-log').addEventListener('click', () => {
+                panel.style.display = 'none';
+            });
+            
+            return panel;
+        };
+        
+        // Global error handler
+        window.onerror = function(message, source, lineno, colno, error) {
+            const errorMsg = `ERROR: ${message} at ${source}:${lineno}:${colno}`;
+            console.error(errorMsg);
+            return false;
+        };
+        
+        // Wait until DOM is loaded
+        window.addEventListener('DOMContentLoaded', () => {
+            const logPanel = createLogPanel();
+            const logContainer = document.getElementById('log-container');
+            
+            // Override console methods
+            console.log = function() {
+                originalConsole.log.apply(console, arguments);
+                addLogEntry('log', Array.from(arguments));
+            };
+            
+            console.warn = function() {
+                originalConsole.warn.apply(console, arguments);
+                addLogEntry('warn', Array.from(arguments));
+            };
+            
+            console.error = function() {
+                originalConsole.error.apply(console, arguments);
+                addLogEntry('error', Array.from(arguments));
+            };
+            
+            function addLogEntry(type, args) {
+                const entry = document.createElement('div');
+                entry.style.borderBottom = '1px solid #333';
+                entry.style.padding = '3px 0';
+                
+                // Format the time
+                const time = new Date().toTimeString().split(' ')[0];
+                let color = '#00ff00';
+                let prefix = 'LOG';
+                
+                if (type === 'warn') {
+                    color = '#ffff00';
+                    prefix = 'WARN';
+                } else if (type === 'error') {
+                    color = '#ff0000';
+                    prefix = 'ERROR';
+                }
+                
+                // Format the message
+                const message = args.map(arg => {
+                    if (typeof arg === 'object') {
+                        try {
+                            return JSON.stringify(arg);
+                        } catch (e) {
+                            return String(arg);
+                        }
+                    }
+                    return String(arg);
+                }).join(' ');
+                
+                entry.innerHTML = `<span style="color:#999;">[${time}]</span> <span style="color:${color};">${prefix}:</span> ${message}`;
+                logContainer.appendChild(entry);
+                
+                // Auto-scroll to bottom
+                logPanel.scrollTop = logPanel.scrollHeight;
+                
+                // Limit entries
+                while (logContainer.children.length > 100) {
+                    logContainer.removeChild(logContainer.firstChild);
+                }
+            }
+            
+            // Test log
+            console.log('Debug logger initialized');
+        });
+    })();
+    
+    // Add module import error tracking
+    window.addEventListener('error', function(e) {
+        if (e.filename && e.filename.includes('.js')) {
+            console.error(`Module error in ${e.filename.split('/').pop()}: ${e.message}`);
         }
-        
-        const errorMsg = document.createElement('div');
-        errorMsg.textContent = `${message} (${source}:${lineno})`;
-        errorDisplay.appendChild(errorMsg);
-        
-        return false;
-    };
+    });
     </script>
     <script type="module" src="scripts/main.js"></script>
 </body>
