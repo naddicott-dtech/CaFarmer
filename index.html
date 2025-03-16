@@ -348,6 +348,32 @@
         }
     });
     </script>
+    <script>
+      // Simple check for button functionality
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM fully loaded');
+        
+        const regularGameBtn = document.getElementById('regular-game-btn');
+        const testModeBtn = document.getElementById('test-mode-btn');
+        
+        console.log('Regular game button:', regularGameBtn);
+        console.log('Test mode button:', testModeBtn);
+        
+        if (regularGameBtn) {
+          regularGameBtn.addEventListener('click', function() {
+            console.log('Regular game button clicked!');
+            alert('Regular game button was clicked');
+          });
+        }
+        
+        if (testModeBtn) {
+          testModeBtn.addEventListener('click', function() {
+            console.log('Test mode button clicked!');
+            alert('Test mode button was clicked');
+          });
+        }
+      });
+    </script>    
     <script type="module" src="scripts/main.js"></script>
 </body>
 </html>
