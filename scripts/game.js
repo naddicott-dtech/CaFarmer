@@ -262,34 +262,167 @@ export class CaliforniaClimateFarmer {
     // Advance to next year
     advanceYear() {
         this.year++;
-
+    
         // Interest on bank balance (if positive)
         if (this.balance > 0) {
             const interest = Math.floor(this.balance * 0.05);
             this.balance += interest;
             this.addEvent(`Earned $${interest} in interest on your positive balance.`);
         }
-
+    
         // Calculate annual farm value
         this.farmValue = calculateFarmValue(this.grid, this.technologies);
-
+    
+        // Calculate sustainability metrics
+        const sustainabilityScore = this.calculateSustainabilityScore();
+        
+        // Log sustainability score
+        this.logger.log(`Year ${this.year} Sustainability Score: ${sustainabilityScore.total}`, 1);
+        this.logger.log(`-- Soil Health: ${sustainabilityScore.soilScore}`, 2);
+        this.logger.log(`-- Crop Diversity: ${sustainabilityScore.diversityScore}`, 2);
+        this.logger.log(`-- Technology: ${sustainabilityScore.techScore}`, 2);
+    
         // Climate change effect - increase drought probability slightly each year
         this.climate.droughtProbability += 0.005;
         this.climate.heatwaveProbability += 0.005;
-
+    
         this.addEvent(`Happy New Year! You've completed Year ${this.year-1} of your farm.`);
-
-        // Year milestone events
-        if (this.year % 5 === 0) {
-            this.addEvent(`Farm milestone: ${this.year} years of operation!`);
-
-            // Bonus for long-term play
-            const bonus = this.year * 1000;
+    
+        // Sustainability-based subsidy instead of time-based
+        if (sustainabilityScore.total >= 70) {
+            // Large subsidy for highly sustainable farms
+            const bonus = Math.round(10000 * (sustainabilityScore.total / 100));
             this.balance += bonus;
-            this.addEvent(`Received $${bonus} government subsidy for sustainable farming.`);
+            this.addEvent(`Received $${bonus} government subsidy for sustainable farming practices!`);
+        } else if (sustainabilityScore.total >= 50) {
+            // Medium subsidy for moderately sustainable farms
+            const bonus = Math.round(5000 * (sustainabilityScore.total / 100));
+            this.balance += bonus;
+            this.addEvent(`Received $${bonus} government subsidy for moderately sustainable farming.`);
+        } else if (sustainabilityScore.total >= 30) {
+            // Small subsidy for minimally sustainable farms
+            const bonus = Math.round(2000 * (sustainabilityScore.total / 100));
+            this.balance += bonus;
+            this.addEvent(`Received $${bonus} small government subsidy for basic farming standards.`);
+        } else {
+            // No subsidy for unsustainable farms
+            this.addEvent(`Your farm did not qualify for government subsidies this year due to unsustainable practices.`);
+        }
+    
+        // Major milestone event every 10 years
+        if (this.year % 10 === 0) {
+            this.addEvent(`Major farm milestone: ${this.year} years of operation!`);
+            
+            // Climate policy shift event
+            if (Math.random() < 0.7) {
+                const policyEvent = Events.generatePolicyEvent(this.year, this.farmHealth);
+                this.pendingEvents.push(policyEvent);
+                this.addEvent(`New climate policy announced for the next decade.`);
+            }
         }
     }
 
+    // Calculate sustainability score based on farm practices
+    calculateSustainabilityScore() {
+        // Initialize score components
+        let soilScore = 0;
+        let cropDiversityScore = 0;
+        let techScore = 0;
+        
+        // Calculate average soil health
+        let totalSoilHealth = 0;
+        let cellCount = 0;
+        let cropCounts = {};
+        let totalCrops = 0;
+        let monocropPenalty = 0;
+        
+        // Analyze farm grid
+        for (let row = 0; row < this.gridSize; row++) {
+            for (let col = 0; col < this.gridSize; col++) {
+                const cell = this.grid[row][col];
+                
+                // Count soil health of all cells
+                totalSoilHealth += cell.soilHealth;
+                cellCount++;
+                
+                // Track planted crops for diversity score
+                if (cell.crop.id !== 'empty') {
+                    cropCounts[cell.crop.id] = (cropCounts[cell.crop.id] || 0) + 1;
+                    totalCrops++;
+                    
+                    // Add penalty for monocropping
+                    if (cell.consecutivePlantings > 0) {
+                        monocropPenalty += cell.consecutivePlantings * 2;
+                    }
+                }
+            }
+        }
+        
+        // Calculate average soil health (0-100)
+        const avgSoilHealth = cellCount > 0 ? totalSoilHealth / cellCount : 0;
+        soilScore = Math.round(avgSoilHealth);
+        
+        // Calculate crop diversity score (0-100)
+        const uniqueCrops = Object.keys(cropCounts).length;
+        
+        if (totalCrops > 0) {
+            // Diversity calculation: 100 if all different crops, 0 if all the same crop
+            const maxPossibleCrops = Math.min(totalCrops, crops.length - 1); // Exclude 'empty'
+            let rawDiversityScore = (uniqueCrops / maxPossibleCrops) * 100;
+            
+            // Distribution factor: Penalty for having most plots with same crop
+            const maxSingleCropCount = Math.max(...Object.values(cropCounts));
+            const dominantCropPercentage = maxSingleCropCount / totalCrops;
+            const distributionPenalty = dominantCropPercentage * 50; // Up to 50 point penalty
+            
+            // Apply penalties
+            cropDiversityScore = Math.round(Math.max(0, rawDiversityScore - distributionPenalty - (monocropPenalty / totalCrops)));
+        }
+        
+        // Calculate technology score (0-100)
+        const sustainableTechs = [
+            'drip_irrigation', 'soil_sensors', 'no_till_farming', 
+            'precision_drones', 'renewable_energy', 'greenhouse',
+            'drought_resistant', 'ai_irrigation', 'silvopasture'
+        ];
+        
+        const maxTechScore = sustainableTechs.length * 100;
+        let rawTechScore = 0;
+        
+        // Give points for each sustainable technology researched
+        for (const tech of sustainableTechs) {
+            if (this.hasTechnology(tech)) {
+                // Award points for each tech - some techs are worth more
+                switch (tech) {
+                    case 'no_till_farming':
+                    case 'silvopasture':
+                        rawTechScore += 20; // These are very sustainable
+                        break;
+                    case 'drip_irrigation':
+                    case 'renewable_energy':
+                    case 'precision_drones':
+                        rawTechScore += 15; // These are quite sustainable
+                        break;
+                    default:
+                        rawTechScore += 10; // Base value for other sustainable tech
+                }
+            }
+        }
+        
+        techScore = Math.round((rawTechScore / maxTechScore) * 100);
+        
+        // Final sustainability score - weighted average
+        // Soil health: 40%, Crop diversity: 40%, Technology: 20%
+        const totalScore = Math.round((soilScore * 0.4) + (cropDiversityScore * 0.4) + (techScore * 0.2));
+        
+        return {
+            total: totalScore,
+            soilScore,
+            diversityScore: cropDiversityScore,
+            techScore
+        };
+    }
+    
     // Process pending events
     processPendingEvents() {
         // Process any events that should occur today
