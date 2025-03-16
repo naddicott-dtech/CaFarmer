@@ -215,4 +215,244 @@ export function applyRainEvent(event, grid, waterReserve, techs) {
         : 'Moderate rainfall has increased water levels across your farm.';
 
     // Additional message for technology impact
-    if (techs.includes('no_till_farming')
+    if (techs.includes('no_till_farming') && isHeavy) {
+        result.message += ' No-till farming practices have prevented erosion from heavy rain.';
+    }
+    
+    return result;
+}
+
+// Apply drought event to a grid of cells
+export function applyDroughtEvent(event, grid, waterReserve, techs) {
+    // Skip drought effects if water reserve is already too low
+    if (waterReserve <= 5) {
+        return {
+            message: 'Water reserves too low to process drought event.',
+            waterReserve: waterReserve,
+            skipped: true
+        };
+    }
+
+    // Use the event's severity if available, otherwise calculate it
+    const severity = event.severity || 0.5;
+
+    // Apply drought resistance technology if available
+    let protection = 1.0;
+    if (techs.includes('drought_resistant')) {
+        protection = getTechEffectValue('droughtResistance', techs, 1.0);
+    }
+
+    // Reduce water levels gradually
+    grid.forEach(row => {
+        row.forEach(cell => {
+            // Reduce water decrease to be very gradual - only 2% per day 
+            const waterDecrease = Math.round(2 * severity * protection);
+            cell.waterLevel = Math.max(0, cell.waterLevel - waterDecrease);
+
+            // Very minimal impact on expected yield
+            if (cell.crop.id !== 'empty') {
+                const yieldImpact = Math.round(1 * severity * protection);
+                cell.expectedYield = Math.max(10, cell.expectedYield - yieldImpact);
+            }
+        });
+    });
+
+    // Decrease water reserve very gradually (only 3% per day maximum)
+    const waterReserveDecrease = Math.min(3, Math.round(3 * severity * protection));
+    const newWaterReserve = Math.max(0, waterReserve - waterReserveDecrease);
+
+    // Create result message
+    let message = 'Drought conditions affecting your farm. Water levels are dropping slowly.';
+
+    // If protection technology is active
+    if (protection < 1.0) {
+        message += ' Your drought-resistant varieties are helping mitigate the impact.';
+    }
+
+    return {
+        message,
+        waterReserve: newWaterReserve,
+        continueEvent: event.duration > 1 && newWaterReserve > 10,
+        nextDuration: event.duration - 1,
+        severity: severity
+    };
+}
+
+// Apply heatwave event to a grid of cells
+export function applyHeatwaveEvent(event, grid, waterReserve, techs) {
+    // Skip heatwave effects if water reserve is already too low
+    if (waterReserve <= 5) {
+        return {
+            message: 'Water reserves too low to process heatwave event.',
+            waterReserve: waterReserve,
+            skipped: true
+        };
+    }
+
+    // Apply heat resistance technology if available
+    let protection = 1.0;
+    if (techs.includes('silvopasture')) {
+        protection = getTechEffectValue('heatResistance', techs, 1.0);
+    } else if (techs.includes('greenhouse')) {
+        protection = getTechEffectValue('weatherProtection', techs, 1.0);
+    }
+
+    // Heatwaves primarily damage crops based on heat sensitivity
+    // and increase water evaporation as a secondary effect
+    grid.forEach(row => {
+        row.forEach(cell => {
+            // Water evaporation is modest - just 1% per day
+            const waterLoss = Math.round(1 * protection); 
+            cell.waterLevel = Math.max(0, cell.waterLevel - waterLoss);
+
+            // The main impact of heatwaves is on crop health/yield
+            if (cell.crop.id !== 'empty') {
+                // Use the crop's specific heat sensitivity - reduced impact to 3% per day max
+                const heatImpact = Math.round(3 * cell.crop.heatSensitivity * protection);
+                cell.expectedYield = Math.max(10, cell.expectedYield - heatImpact);
+            }
+        });
+    });
+
+    // Even more modest impact on water reserve - maximum 2% per day
+    const waterReserveDecrease = Math.min(2, Math.round(2 * protection));
+    const newWaterReserve = Math.max(0, waterReserve - waterReserveDecrease);
+
+    // Create result message
+    let message = 'Heatwave conditions! Crops are experiencing heat stress and growth is slowed.';
+
+    // If protection technology is active
+    if (protection < 1.0) {
+        if (techs.includes('silvopasture')) {
+            message += ' Your silvopasture technique is providing shade and reducing heat damage.';
+        } else if (techs.includes('greenhouse')) {
+            message += ' Your greenhouse technology is providing climate control against the heat.';
+        }
+    }
+
+    return {
+        message,
+        waterReserve: newWaterReserve,
+        continueEvent: event.duration > 1 && newWaterReserve > 10,
+        nextDuration: event.duration - 1
+    };
+}
+
+// Apply frost event to a grid of cells
+export function applyFrostEvent(event, grid, techs) {
+    // Apply greenhouse protection if available
+    let protection = 1.0;
+    if (techs.includes('greenhouse')) {
+        protection = getTechEffectValue('weatherProtection', techs, 1.0);
+    }
+    
+    // Apply frost damage to cells
+    grid.forEach(row => {
+        row.forEach(cell => {
+            if (cell.crop.id !== 'empty') {
+                // Frost damage based on growth stage (young plants more vulnerable)
+                const frostDamage = cell.growthProgress < 50 ? 30 : 15;
+                
+                // Apply protection
+                const yieldImpact = Math.round(frostDamage * protection);
+                cell.expectedYield = Math.max(10, cell.expectedYield - yieldImpact);
+            }
+        });
+    });
+    
+    // Create result message
+    let message = 'Frost has affected your crops! Young plants are particularly vulnerable.';
+
+    // If greenhouse technology is active
+    if (techs.includes('greenhouse')) {
+        message += ' Your greenhouse technology has reduced the frost damage.';
+    }
+    
+    return { message };
+}
+
+// Apply market event to market prices
+export function applyMarketEvent(event, marketPrices, crops) {
+    // Select a random crop if not specified in the event
+    const cropId = event.cropId || crops.find(c => c.id !== 'empty').id;
+    const crop = getCropById(cropId);
+    
+    if (!crop || crop.id === 'empty') return { message: 'Market event failed to process.' };
+    
+    // Clone the market prices to avoid direct mutation
+    const newMarketPrices = { ...marketPrices };
+    
+    // Apply market effect
+    if (event.effect === 'increase') {
+        newMarketPrices[crop.id] *= event.magnitude;
+    } else {
+        newMarketPrices[crop.id] *= event.magnitude;
+    }
+    
+    // Clamp to reasonable range
+    newMarketPrices[crop.id] = Math.max(0.5, Math.min(2.5, newMarketPrices[crop.id]));
+    
+    const direction = event.effect === 'increase' ? 'risen' : 'fallen';
+    const percentChange = Math.round(Math.abs(1 - event.magnitude) * 100);
+    
+    return {
+        message: `Market update: ${crop.name} prices have ${direction} by ${percentChange}%.`,
+        marketPrices: newMarketPrices,
+        affectedCrop: crop.id
+    };
+}
+
+// Apply policy event
+export function applyPolicyEvent(event, balance) {
+    let message = '';
+    let balanceChange = 0;
+    
+    switch (event.effect) {
+        case 'water_cost':
+            message = `Water restriction policy enacted. Irrigation costs have increased by ${Math.round((event.magnitude - 1) * 100)}%.`;
+            break;
+        case 'subsidy':
+            balanceChange = event.magnitude;
+            message = `You received a $${event.magnitude.toLocaleString()} environmental subsidy!`;
+            break;
+        case 'compliance_cost':
+            balanceChange = -event.magnitude;
+            message = `New regulations have cost you $${event.magnitude.toLocaleString()} in compliance expenses.`;
+            break;
+        case 'tax_refund':
+            balanceChange = event.magnitude;
+            message = `You received a $${event.magnitude.toLocaleString()} agricultural tax refund!`;
+            break;
+    }
+    
+    return {
+        message,
+        balanceChange,
+        newBalance: balance + balanceChange
+    };
+}
+
+// Apply technology event
+export function applyTechnologyEvent(event, balance) {
+    let message = '';
+    let balanceChange = 0;
+    
+    switch (event.effect) {
+        case 'research_discount':
+            message = `Research breakthrough! Technology costs reduced by ${Math.round((1 - event.magnitude) * 100)}% for the next month.`;
+            break;
+        case 'research_bonus':
+            balanceChange = event.magnitude;
+            message = `You received a $${event.magnitude.toLocaleString()} innovation grant for farm research!`;
+            break;
+        case 'research_options':
+            message = `Climate tech expo: New research opportunities may become available soon.`;
+            break;
+    }
+    
+    return {
+        message,
+        balanceChange,
+        newBalance: balance + balanceChange
+    };
+}
