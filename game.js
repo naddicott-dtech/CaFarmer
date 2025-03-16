@@ -730,63 +730,74 @@
                 return true;
             }
 
-            harvestCell(row, col) {
-                const cell = this.grid[row][col];
-                const cropName = cell.crop.name; // Save crop name before clearing cell
-
-                if (cell.crop.id === 'empty') {
-                    if (!this.testMode) this.addEvent('Nothing to harvest in this plot.', true);
-                    return false;
-                }
-
-                if (!cell.harvestReady) {
-                    if (!this.testMode) this.addEvent('Crop is not ready for harvest yet.', true);
-                    return false;
-                }
-
-                // Calculate yield based on growing conditions
-                let yieldPercentage = cell.expectedYield / 100;
-
-                // Apply water stress factor
-                const waterFactor = cell.waterLevel / 100;
-                yieldPercentage *= Math.pow(waterFactor, cell.crop.waterSensitivity);
-
-                // Apply soil health factor
-                const soilFactor = cell.soilHealth / 100;
-                yieldPercentage *= Math.pow(soilFactor, 0.8);
-
-                // Calculate final harvest value
-                const baseValue = cell.crop.harvestValue;
-                const marketPrice = this.marketPrices[cell.crop.id] || 1.0;
-                const harvestValue = Math.round(baseValue * yieldPercentage * marketPrice);
-
-                // Add to balance
-                this.balance += harvestValue;
-
-                // Clear the cell
-                cell.crop = this.crops[0]; // Empty plot
-                cell.growthProgress = 0;
-                cell.daysSincePlanting = 0;
-                cell.fertilized = false;
-                cell.irrigated = false;
-                cell.harvestReady = false;
-                cell.expectedYield = 0;
-
-                // Apply soil health impact from harvesting
-                cell.soilHealth = Math.max(10, cell.soilHealth - 5);
-
-                // Update UI
-                this.updateHUD();
-                if (!this.testMode) this.showCellInfo(row, col);
-                this.render();
-
-                if (!this.testMode) {
-                    this.addEvent(`Harvested ${cropName} for ${harvestValue}. Yield: ${Math.round(yieldPercentage * 100)}%`);
-                }
-
-                return true;
+        harvestCell(row, col) {
+            const cell = this.grid[row][col];
+            const cropName = cell.crop.name; // Save crop name before clearing cell
+        
+            if (cell.crop.id === 'empty') {
+                if (!this.testMode) this.addEvent('Nothing to harvest in this plot.', true);
+                return false;
             }
-
+        
+            if (!cell.harvestReady) {
+                if (!this.testMode) this.addEvent('Crop is not ready for harvest yet.', true);
+                return false;
+            }
+        
+            // Calculate yield based on growing conditions
+            let yieldPercentage = cell.expectedYield / 100;
+        
+            // Apply water stress factor - ENHANCED to include farm-wide water reserves
+            const cellWaterFactor = cell.waterLevel / 100;
+            const farmWaterFactor = this.waterReserve / 100;
+            
+            // Combine cell and farm water factors, with farm having significant impact
+            const combinedWaterFactor = cellWaterFactor * 0.7 + farmWaterFactor * 0.3;
+            
+            // Apply to yield with crop's water sensitivity
+            yieldPercentage *= Math.pow(combinedWaterFactor, cell.crop.waterSensitivity * 1.2);
+        
+            // Apply soil health factor
+            const soilFactor = cell.soilHealth / 100;
+            yieldPercentage *= Math.pow(soilFactor, 0.8);
+        
+            // Calculate final harvest value
+            const baseValue = cell.crop.harvestValue;
+            const marketPrice = this.marketPrices[cell.crop.id] || 1.0;
+            const harvestValue = Math.round(baseValue * yieldPercentage * marketPrice);
+        
+            // Add to balance
+            this.balance += harvestValue;
+        
+            // Add to metrics in test mode
+            if (this.testMode) {
+                this.testMetrics.harvestCount++;
+                this.testMetrics.totalHarvestValue += harvestValue;
+            }
+        
+            // Clear the cell
+            cell.crop = this.crops[0]; // Empty plot
+            cell.growthProgress = 0;
+            cell.daysSincePlanting = 0;
+            cell.fertilized = false;
+            cell.irrigated = false;
+            cell.harvestReady = false;
+            cell.expectedYield = 0;
+        
+            // Apply soil health impact from harvesting
+            cell.soilHealth = Math.max(10, cell.soilHealth - 5);
+        
+            // Update UI
+            this.updateHUD();
+            if (!this.testMode) this.showCellInfo(row, col);
+            this.render();
+        
+            if (!this.testMode) {
+                this.addEvent(`Harvested ${cropName} for ${harvestValue}. Yield: ${Math.round(yieldPercentage * 100)}%`);
+            }
+        
+            return true;
+        }
             updateLegend() {
                 const legend = document.getElementById('grid-legend');
                 legend.innerHTML = '';
@@ -1836,28 +1847,45 @@
                 this.render();
             }
 
-            calculateGrowthRate(cell) {
-                // Base growth rate based on crop growth time
-                const baseRate = 100 / cell.crop.growthTime;
-
-                // Factors affecting growth
-                let waterFactor = Math.pow(cell.waterLevel / 100, cell.crop.waterSensitivity);
-                let soilFactor = Math.pow(cell.soilHealth / 100, 0.8);
-                let fertilizerFactor = cell.fertilized ? 1.2 : 1.0;
-
-                // Apply technology effects
-                if (this.hasTechnology('drip_irrigation')) {
-                    waterFactor *= 1.1;
+        calculateGrowthRate(cell) {
+            // Base growth rate based on crop growth time
+            const baseRate = 100 / cell.crop.growthTime;
+        
+            // Get farm-wide water status
+            const farmWaterFactor = this.waterReserve / 100;
+            
+            // Factors affecting growth
+            let waterFactor = Math.pow(cell.waterLevel / 100, cell.crop.waterSensitivity);
+            
+            // CRITICAL CHANGE: Make farm water reserves have a significant impact
+            // If water reserves are below 20%, severely impact growth
+            if (this.waterReserve < 20) {
+                // Exponential penalty for low water reserves
+                const waterReservePenalty = Math.pow(farmWaterFactor, 1.5);
+                waterFactor *= waterReservePenalty;
+                
+                // At 0% water reserve, growth is minimal
+                if (this.waterReserve <= 5) {
+                    waterFactor *= 0.2; // severe penalty - only 20% of normal growth
                 }
-
-                if (this.hasTechnology('soil_sensors')) {
-                    soilFactor *= 1.1;
-                }
-
-                // Calculate final growth rate
-                return baseRate * waterFactor * soilFactor * fertilizerFactor;
             }
-
+            
+            // Soil factor remains the same
+            let soilFactor = Math.pow(cell.soilHealth / 100, 0.8);
+            let fertilizerFactor = cell.fertilized ? 1.2 : 1.0;
+        
+            // Apply technology effects
+            if (this.hasTechnology('drip_irrigation')) {
+                waterFactor *= 1.1;
+            }
+        
+            if (this.hasTechnology('soil_sensors')) {
+                soilFactor *= 1.1;
+            }
+        
+            // Calculate final growth rate
+            return baseRate * waterFactor * soilFactor * fertilizerFactor;
+        }
         // Simple fix for advanceSeason to add water recovery in Spring
         advanceSeason() {
             // Rotate seasons
@@ -2253,7 +2281,6 @@
             }
         }
         
-        //  handle heatwave events
         applyHeatwaveEvent(event) {
             // Skip heatwave effects if water reserve is already too low
             if (this.waterReserve <= 5) {
@@ -2277,21 +2304,21 @@
                 for (let col = 0; col < this.gridSize; col++) {
                     const cell = this.grid[row][col];
         
-                    // Water evaporation is modest but present
-                    const waterLoss = Math.round(2 * protection);
+                    // Water evaporation is modest but present - REDUCED FURTHER to just 1% per day
+                    const waterLoss = Math.round(1 * protection); 
                     cell.waterLevel = Math.max(0, cell.waterLevel - waterLoss);
         
                     // The main impact of heatwaves is on crop health/yield
                     if (cell.crop.id !== 'empty') {
-                        // Use the crop's specific heat sensitivity
-                        const heatImpact = Math.round(5 * cell.crop.heatSensitivity * protection);
+                        // Use the crop's specific heat sensitivity - REDUCED impact to 3% per day max
+                        const heatImpact = Math.round(3 * cell.crop.heatSensitivity * protection);
                         cell.expectedYield = Math.max(10, cell.expectedYield - heatImpact);
                     }
                 }
             }
         
-            // Modest impact on water reserve (less than drought)
-            const waterReserveDecrease = Math.min(3, Math.round(3 * protection));
+            // Even more modest impact on water reserve - maximum 2% per day
+            const waterReserveDecrease = Math.min(2, Math.round(2 * protection));
             this.waterReserve = Math.max(0, this.waterReserve - waterReserveDecrease);
         
             // Track climate events in test metrics
@@ -2311,7 +2338,7 @@
                 }
             }
         
-            // Schedule heatwave to continue but with shorter duration than drought
+            // Schedule heatwave to continue only if water reserve isn't too low
             if (event.duration > 1 && this.waterReserve > 10) {
                 // Check if this event already exists to prevent duplication
                 const nextDay = this.day + 1;
