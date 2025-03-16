@@ -5,10 +5,17 @@
  * These strategies simulate different approaches to farm management.
  */
 
+// Make sure to import crops properly based on your file structure
+// The original import might be incorrect (it assumes crops.js is in a parent directory)
 import { crops } from '../crops.js';
+
+// Add this to help with debugging
+console.log('Test strategies module loaded, crops:', crops);
 
 // Set up the appropriate strategy for a test game
 export function setupTestStrategy(game, strategyId) {
+    console.log(`Setting up test strategy: ${strategyId}`);
+    
     game.testMetrics = {
         startBalance: game.balance,
         highestBalance: game.balance,
@@ -159,6 +166,7 @@ function updateMonocultureTest(game) {
     }
 }
 
+// Rest of the functions remain the same...
 // Set up diverse crops test
 function setupDiverseCropsTest(game) {
     game.logger.log(`Diverse crops test - planting different crops`);
