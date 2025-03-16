@@ -37,6 +37,8 @@ let testHarness = null;
 // Initialize once modules are loaded
 loadModules().then(() => {
     console.log('Modules loaded, setting up event listeners');
+    console.log("CaliforniaClimateFarmer:", CaliforniaClimateFarmer); // ADD THIS LINE
+    console.log("TestHarness:", TestHarness); // ADD THIS LINE
     
     // Initialize splash screen controls
     document.addEventListener('DOMContentLoaded', () => {
