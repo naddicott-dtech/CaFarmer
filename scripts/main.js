@@ -106,7 +106,6 @@ function initializeGameControls() {
 
     // Handle test selection
     if (testOptions) {
-        const testAll = document.getElementById('test-all');
         console.log("Setting up test checkboxes");
         
         document.querySelectorAll('.test-list input[type="checkbox"]').forEach(checkbox => {
@@ -164,7 +163,10 @@ function initializeGameControls() {
                 return;
             }
             
-            if (testAll && testAll.checked) {
+            // Find the "test-all" checkbox - proper reference fix
+            const testAllCheckbox = document.getElementById('test-all');
+            
+            if (testAllCheckbox && testAllCheckbox.checked) {
                 console.log("'Test all' is checked, selecting all tests");
                 testHarness.selectAllTests();
             }
