@@ -2180,6 +2180,108 @@
             // Remove processed events
             this.pendingEvents = this.pendingEvents.filter(event => event.day !== this.day);
         }
+
+        // Add this function to handle rain events
+        applyRainEvent(event) {
+            const isHeavy = event.intensity === 'heavy';
+        
+            // Increase water levels
+            for (let row = 0; row < this.gridSize; row++) {
+                for (let col = 0; col < this.gridSize; col++) {
+                    const cell = this.grid[row][col];
+        
+                    // Increased water from rain
+                    const waterIncrease = isHeavy ? 30 : 15;
+                    cell.waterLevel = Math.min(100, cell.waterLevel + waterIncrease);
+        
+                    // Heavy rain affects soil (erosion)
+                    if (isHeavy && !this.hasTechnology('no_till_farming')) {
+                        cell.soilHealth = Math.max(10, cell.soilHealth - 5);
+                    }
+                }
+            }
+        
+            // Increase water reserve
+            this.waterReserve = Math.min(100, this.waterReserve + (isHeavy ? 20 : 10));
+        
+            // Track climate events in test metrics
+            if (this.testMode) {
+                this.testMetrics.climateEvents.rain++;
+                this.debugLog(`${isHeavy ? 'Heavy' : 'Moderate'} rain has increased water levels. Water reserve: ${this.waterReserve}%`);
+            } else {
+                const message = isHeavy
+                    ? 'Heavy rainfall has increased water levels but may have caused soil erosion.'
+                    : 'Moderate rainfall has increased water levels across your farm.';
+                
+                this.addEvent(message);
+            }
+        
+            // Apply technology effects
+            if (this.hasTechnology('no_till_farming') && isHeavy) {
+                this.addEvent('No-till farming practices have prevented erosion from heavy rain.');
+            }
+        }
+        
+        // Also make sure to add the function to handle heatwave events
+        applyHeatwaveEvent(event) {
+            // Apply heat resistance technology if available
+            let protection = 1.0;
+            if (this.hasTechnology('silvopasture')) {
+                protection = this.getTechEffectValue('heatResistance', 1.0);
+            }
+        
+            // Impact on crops and water levels
+            for (let row = 0; row < this.gridSize; row++) {
+                for (let col = 0; col < this.gridSize; col++) {
+                    const cell = this.grid[row][col];
+        
+                    // Increase water evaporation
+                    const waterLoss = Math.round(10 * protection);
+                    cell.waterLevel = Math.max(0, cell.waterLevel - waterLoss);
+        
+                    // Impact on expected yield based on crop heat sensitivity
+                    if (cell.crop.id !== 'empty') {
+                        const heatImpact = Math.round(10 * cell.crop.heatSensitivity * protection);
+                        cell.expectedYield = Math.max(10, cell.expectedYield - heatImpact);
+                    }
+                }
+            }
+        
+            // Decrease water reserve
+            this.waterReserve = Math.max(0, this.waterReserve - Math.round(10 * protection));
+        
+            // Track climate events in test metrics
+            if (this.testMode) {
+                this.testMetrics.climateEvents.heatwave++;
+                this.debugLog(`Heatwave event - Water reserve: ${this.waterReserve}%, impact reduced: ${protection < 1.0}`);
+            } else {
+                this.addEvent(`Heatwave conditions! Increased water evaporation and stress on crops.`, true);
+        
+                // If protection technology is active
+                if (protection < 1.0) {
+                    this.addEvent(`Your silvopasture technique is providing shade and reducing heat damage.`);
+                }
+            }
+        
+            // Schedule heatwave to continue
+            if (event.duration > 1) {
+                // Check if this event already exists to prevent duplication
+                const nextDay = this.day + 1;
+                const existingEventIndex = this.pendingEvents.findIndex(e => 
+                    e.type === 'heatwave' && e.day === nextDay);
+                
+                // Only add the next day's event if it doesn't already exist
+                if (existingEventIndex === -1) {
+                    this.pendingEvents.push({
+                        ...event,
+                        day: nextDay,
+                        duration: event.duration - 1
+                    });
+                }
+            } else if (!this.testMode) {
+                this.addEvent(`The heatwave has ended.`);
+            }
+        }
                 
         applyDroughtEvent(event) {
             // Skip drought effects if water reserve is already too low
