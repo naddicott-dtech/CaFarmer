@@ -1977,63 +1977,64 @@
                 this.farmHealth = Math.max(0, Math.min(100, this.farmHealth));
             }
 
-            generateRandomEvent() {
-                const eventTypes = [
-                    { type: 'rainfall', probability: 0.3 },
-                    { type: 'drought', probability: this.climate.droughtProbability },
-                    { type: 'heatwave', probability: this.climate.heatwaveProbability },
-                    { type: 'market', probability: 0.2 },
-                    { type: 'policy', probability: 0.1 },
-                    { type: 'technology', probability: 0.15 }
-                ];
-
-                let totalProb = 0;
-                eventTypes.forEach(e => totalProb += e.probability);
-
-                // Normalize probabilities
-                eventTypes.forEach(e => e.probability /= totalProb);
-
-                // Cumulative probability
-                let cumProb = 0;
-                for (let i = 0; i < eventTypes.length; i++) {
-                    eventTypes[i].cumulativeProb = cumProb + eventTypes[i].probability;
-                    cumProb = eventTypes[i].cumulativeProb;
-                }
-
-                // Select event type
-                const rand = Math.random();
-                let selectedType = eventTypes[0].type;
-
-                for (let i = 0; i < eventTypes.length; i++) {
-                    if (rand <= eventTypes[i].cumulativeProb) {
-                        selectedType = eventTypes[i].type;
-                        break;
-                    }
-                }
-
-                // Generate the specific event
-                switch (selectedType) {
-                    case 'rainfall':
-                        this.scheduleRain();
-                        break;
-                    case 'drought':
-                        this.scheduleDrought();
-                        break;
-                    case 'heatwave':
-                        this.scheduleHeatwave();
-                        break;
-                    case 'market':
-                        this.scheduleMarketEvent();
-                        break;
-                    case 'policy':
-                        this.schedulePolicyEvent();
-                        break;
-                    case 'technology':
-                        this.scheduleTechnologyEvent();
-                        break;
+        generateRandomEvent() {
+            const eventTypes = [
+                { type: 'rainfall', probability: 0.4 },
+                { type: 'drought', probability: this.climate.droughtProbability * 0.5 }, // Reduced by 50%
+                { type: 'heatwave', probability: this.climate.heatwaveProbability * 0.7 }, // Reduced by 30%
+                { type: 'market', probability: 0.2 },
+                { type: 'policy', probability: 0.1 },
+                { type: 'technology', probability: 0.15 }
+            ];
+        
+            // Rest of the function remains the same
+            let totalProb = 0;
+            eventTypes.forEach(e => totalProb += e.probability);
+        
+            // Normalize probabilities
+            eventTypes.forEach(e => e.probability /= totalProb);
+        
+            // Cumulative probability
+            let cumProb = 0;
+            for (let i = 0; i < eventTypes.length; i++) {
+                eventTypes[i].cumulativeProb = cumProb + eventTypes[i].probability;
+                cumProb = eventTypes[i].cumulativeProb;
+            }
+        
+            // Select event type
+            const rand = Math.random();
+            let selectedType = eventTypes[0].type;
+        
+            for (let i = 0; i < eventTypes.length; i++) {
+                if (rand <= eventTypes[i].cumulativeProb) {
+                    selectedType = eventTypes[i].type;
+                    break;
                 }
             }
-
+        
+            // Generate the specific event
+            switch (selectedType) {
+                case 'rainfall':
+                    this.scheduleRain();
+                    break;
+                case 'drought':
+                    this.scheduleDrought();
+                    break;
+                case 'heatwave':
+                    this.scheduleHeatwave();
+                    break;
+                case 'market':
+                    this.scheduleMarketEvent();
+                    break;
+                case 'policy':
+                    this.schedulePolicyEvent();
+                    break;
+                case 'technology':
+                    this.scheduleTechnologyEvent();
+                    break;
+            }
+        }
+                
             scheduleRain() {
                 const intensity = Math.random() < 0.3 ? 'heavy' : 'moderate';
 
@@ -2046,17 +2047,20 @@
                 this.addEvent(`Weather forecast: ${intensity} rain expected soon.`);
             }
 
-            scheduleDrought() {
-                const duration = Math.floor(10 + Math.random() * 20);
-
-                this.pendingEvents.push({
-                    type: 'drought',
-                    duration,
-                    day: this.day + Math.floor(Math.random() * 10)
-                });
-
-                this.addEvent(`Climate alert: Drought conditions forming in the region.`, true);
-            }
+        // Create drought events with appropriate severity and duration
+        scheduleDrought() {
+            // Make duration more reasonable - between 3-10 days instead of 10-30
+            const duration = Math.floor(3 + Math.random() * 7);
+        
+            this.pendingEvents.push({
+                type: 'drought',
+                duration,
+                severity: Math.min(0.7, 0.3 + (this.climate.droughtProbability * 2)), // Reduce max severity
+                day: this.day + Math.floor(Math.random() * 10)
+            });
+        
+            this.addEvent(`Climate alert: Drought conditions forming in the region.`, true);
+        }
 
             scheduleHeatwave() {
                 const duration = Math.floor(5 + Math.random() * 10);
@@ -2143,7 +2147,6 @@
                 this.addEvent(`Technology news: ${event.name} event announced.`);
             }
 
-        // Also, update the processPendingEvents function to ensure events are properly removed:
         processPendingEvents() {
             // Process any events that should occur today
             const activeEvents = this.pendingEvents.filter(event => event.day === this.day);
@@ -2178,39 +2181,9 @@
             this.pendingEvents = this.pendingEvents.filter(event => event.day !== this.day);
         }
                 
-            applyRainEvent(event) {
-                const isHeavy = event.intensity === 'heavy';
-
-                // Increase water levels
-                for (let row = 0; row < this.gridSize; row++) {
-                    for (let col = 0; col < this.gridSize; col++) {
-                        const cell = this.grid[row][col];
-
-                        // Water increase based on intensity
-                        const waterIncrease = isHeavy ? 30 : 15;
-                        cell.waterLevel = Math.min(100, cell.waterLevel + waterIncrease);
-
-                        // Heavy rain affects soil (erosion)
-                        if (isHeavy && !this.hasTechnology('no_till_farming')) {
-                            cell.soilHealth = Math.max(10, cell.soilHealth - 5);
-                        }
-                    }
-                }
-
-                // Increase water reserve
-                this.waterReserve = Math.min(100, this.waterReserve + (isHeavy ? 20 : 10));
-
-                const message = isHeavy
-                    ? 'Heavy rainfall has increased water levels but may have caused soil erosion.'
-                    : 'Moderate rainfall has increased water levels across your farm.';
-
-                this.addEvent(message);
-            }
-
-        // Find and replace the applyDroughtEvent function with this updated version:
         applyDroughtEvent(event) {
-            // Start drought conditions
-            const severity = Math.min(1.0, 0.5 + (this.climate.droughtProbability * 5));
+            // Use the event's severity if available, otherwise calculate it
+            const severity = event.severity || Math.min(0.7, 0.3 + (this.climate.droughtProbability * 2));
         
             // Apply drought resistance technology if available
             let protection = 1.0;
@@ -2218,25 +2191,26 @@
                 protection = this.getTechEffectValue('droughtResistance', 1.0);
             }
         
-            // Reduce water levels
+            // Reduce water levels - use smaller values to make drought more gradual
             for (let row = 0; row < this.gridSize; row++) {
                 for (let col = 0; col < this.gridSize; col++) {
                     const cell = this.grid[row][col];
         
-                    // Water decrease based on severity and protection
-                    const waterDecrease = Math.round(20 * severity * protection);
+                    // Reduce water decrease to be more gradual - 5% per day instead of 20%
+                    const waterDecrease = Math.round(5 * severity * protection);
                     cell.waterLevel = Math.max(0, cell.waterLevel - waterDecrease);
         
-                    // Impact on expected yield
+                    // Impact on expected yield - also more gradual
                     if (cell.crop.id !== 'empty') {
-                        const yieldImpact = Math.round(15 * severity * protection);
+                        const yieldImpact = Math.round(3 * severity * protection);
                         cell.expectedYield = Math.max(10, cell.expectedYield - yieldImpact);
                     }
                 }
             }
         
-            // Decrease water reserve
-            this.waterReserve = Math.max(0, this.waterReserve - Math.round(25 * severity * protection));
+            // Decrease water reserve - more gradually (7% per day instead of 25%)
+            const waterReserveDecrease = Math.round(7 * severity * protection);
+            this.waterReserve = Math.max(0, this.waterReserve - waterReserveDecrease);
         
             // Track climate events in test metrics
             if (this.testMode) {
@@ -2254,67 +2228,23 @@
             // Schedule drought to continue
             if (event.duration > 1) {
                 // Check if this event already exists in the pending events to avoid duplication
+                const nextDay = this.day + 1;
                 const existingEventIndex = this.pendingEvents.findIndex(e => 
-                    e.type === event.type && e.day === this.day + 1);
+                    e.type === 'drought' && e.day === nextDay);
                 
                 // Only add the next day's event if it doesn't already exist
                 if (existingEventIndex === -1) {
                     this.pendingEvents.push({
-                        ...event,
-                        day: this.day + 1,
-                        duration: event.duration - 1
+                        type: 'drought',
+                        duration: event.duration - 1,
+                        severity: severity, // Keep the same severity for continuity
+                        day: nextDay
                     });
                 }
             } else if (!this.testMode) {
                 this.addEvent(`The drought has ended.`);
             }
         }
-                
-            applyHeatwaveEvent(event) {
-                // Start heatwave conditions
-                const severity = 0.8 + (this.climate.heatwaveProbability * 2);
-
-                // Apply heat resistance technology if available
-                let protection = 1.0;
-                if (this.hasTechnology('silvopasture')) {
-                    protection = this.getTechEffectValue('heatResistance', 1.0);
-                }
-
-                // Increase water usage and stress crops
-                for (let row = 0; row < this.gridSize; row++) {
-                    for (let col = 0; col < this.gridSize; col++) {
-                        const cell = this.grid[row][col];
-
-                        if (cell.crop.id !== 'empty') {
-                            // Water decrease from heat
-                            const waterDecrease = Math.round(10 * severity * protection);
-                            cell.waterLevel = Math.max(0, cell.waterLevel - waterDecrease);
-
-                            // Heat stress on yield based on crop sensitivity
-                            const yieldImpact = Math.round(10 * severity * cell.crop.heatSensitivity * protection);
-                            cell.expectedYield = Math.max(10, cell.expectedYield - yieldImpact);
-                        }
-                    }
-                }
-
-                this.addEvent(`Heatwave conditions have begun! Crops are under stress.`, true);
-
-                // If protection technology is active
-                if (protection < 1.0) {
-                    this.addEvent(`Your silvopasture system is helping reduce the heat impact.`);
-                }
-
-                // Schedule heatwave to continue
-                if (event.duration > 1) {
-                    this.pendingEvents.push({
-                        ...event,
-                        day: this.day + 1,
-                        duration: event.duration - 1
-                    });
-                } else {
-                    this.addEvent(`The heatwave has ended.`);
-                }
-            }
 
             applyFrostEvent(event) {
                 // Frost impact
