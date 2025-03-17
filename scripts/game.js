@@ -466,6 +466,7 @@ export class CaliforniaClimateFarmer {
                                 type: 'drought',
                                 duration: droughtResult.nextDuration,
                                 severity: droughtResult.severity,
+                                message: droughtResult.message, // Copy the message to the next event
                                 day: this.day + 1
                             });
                         } else {
@@ -485,6 +486,7 @@ export class CaliforniaClimateFarmer {
                             this.pendingEvents.push({
                                 type: 'heatwave',
                                 duration: heatwaveResult.nextDuration,
+                                message: heatwaveResult.message, // Copy the message to the next event
                                 day: this.day + 1
                             });
                         } else {
