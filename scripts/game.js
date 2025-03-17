@@ -122,33 +122,34 @@ export class CaliforniaClimateFarmer {
         // Advance day
         this.day++;
         this.seasonDay++;
-
+    
         // Update crop growth and conditions
         this.updateFarm();
-
+    
         // Check for season change (every 90 days)
         if (this.seasonDay > 90) {
             this.seasonDay = 1;
             this.advanceSeason();
         }
-
+    
         // Check for year change
         if (this.day > 360) {
             this.day = 1;
             this.advanceYear();
         }
-
+    
         // Process any pending events
         this.processPendingEvents();
-
+    
         // Update farm health based on overall conditions
         this.farmHealth = calculateFarmHealth(this.grid, this.waterReserve);
-
+    
         // Update HUD
         this.ui.updateHUD();
-
-        // Generate random events occasionally
-        if (Math.random() < 0.01) {
+    
+        // Generate random events occasionally - with throttling to prevent duplicates
+        // Only run event generation check every 5 days to reduce chance of duplicates
+        if (this.day % 5 === 0 && Math.random() < 0.2) {
             // Pass relevant farm state to event generators
             const farmState = {
                 climate: this.climate,
@@ -162,11 +163,21 @@ export class CaliforniaClimateFarmer {
             
             const newEvent = Events.generateRandomEvent(farmState);
             if (newEvent) {
-                this.pendingEvents.push(newEvent);
-                this.addEvent(newEvent.message, newEvent.isAlert || false);
+                // Make sure we don't have a duplicate event
+                const isDuplicate = this.pendingEvents.some(event => 
+                    event.type === newEvent.type && 
+                    Math.abs(event.day - newEvent.day) < 5
+                );
+                
+                if (!isDuplicate) {
+                    this.pendingEvents.push(newEvent);
+                    if (newEvent.forecastMessage) {
+                        this.addEvent(newEvent.forecastMessage);
+                    }
+                }
             }
         }
-
+    
         // Run test mode update if active
         if (this.testMode) {
             this.runTestUpdate();
