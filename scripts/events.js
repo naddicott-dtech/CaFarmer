@@ -164,23 +164,116 @@ export function schedulePolicyEvent(day) {
     };
 }
 
-// Schedule a technology event
-export function scheduleTechnologyEvent(day) {
-    const events = [
-        { name: 'Research Breakthrough', effect: 'research_discount', magnitude: 0.7 },
-        { name: 'Innovation Grant', effect: 'research_bonus', magnitude: 10000 },
-        { name: 'Climate Tech Expo', effect: 'research_options', magnitude: 2 }
+// Generate a technology-related event
+export function generateTechnologyEvent(day, farmState) {
+    // Determine the type of technology event
+    const eventTypes = [
+        { id: 'innovation_grant', probability: 0.5 },
+        { id: 'research_breakthrough', probability: 0.3 },
+        { id: 'technology_setback', probability: 0.2 }
     ];
+    
+    // Select event type based on probabilities
+    const roll = Math.random();
+    let cumulativeProbability = 0;
+    let selectedType = eventTypes[0].id;
+    
+    for (const type of eventTypes) {
+        cumulativeProbability += type.probability;
+        if (roll < cumulativeProbability) {
+            selectedType = type.id;
+            break;
+        }
+    }
+    
+    const eventDay = day + Math.floor(Math.random() * 30) + 5; // 5-35 days from now
+    
+    // Create the event based on type
+    switch (selectedType) {
+        case 'innovation_grant':
+            return createInnovationGrantEvent(eventDay, farmState);
+        case 'research_breakthrough':
+            return createResearchBreakthroughEvent(eventDay);
+        case 'technology_setback':
+            return createTechnologySetbackEvent(eventDay);
+        default:
+            return createInnovationGrantEvent(eventDay, farmState);
+    }
+}
 
-    const event = events[Math.floor(Math.random() * events.length)];
+// Create innovation grant event that scales with technology adoption
+function createInnovationGrantEvent(day, farmState) {
+    // Only award meaningful grants if the farm has researched some technologies
+    const techCount = farmState?.researchedTechs?.length || 0;
+    
+    // Base amount for grants
+    let grantAmount = 0;
+    let message = '';
+    
+    if (techCount === 0) {
+        // No technologies researched - very small grant or no grant at all
+        if (Math.random() < 0.2) {
+            // 20% chance of a tiny starter grant to encourage research
+            grantAmount = 2000;
+            message = `You received a small $${grantAmount} starter grant for farm innovation. Consider investing in research.`;
+        } else {
+            // 80% chance of being denied a grant
+            grantAmount = 0;
+            message = 'Your farm was not selected for an innovation grant due to lack of technological adoption.';
+        }
+    } else if (techCount === 1) {
+        // One technology - modest grant
+        grantAmount = 5000;
+        message = `You received a $${grantAmount} innovation grant for your initial research efforts.`;
+    } else if (techCount <= 3) {
+        // 2-3 technologies - medium grant
+        grantAmount = 10000;
+        message = `You received a $${grantAmount} innovation grant for farm research!`;
+    } else if (techCount <= 5) {
+        // 4-5 technologies - large grant
+        grantAmount = 15000;
+        message = `You received a $${grantAmount} substantial innovation grant for your technological leadership!`;
+    } else {
+        // 6+ technologies - very large grant
+        grantAmount = 20000 + (techCount - 6) * 2000; // Additional 2k per tech beyond 6
+        message = `You received a major $${grantAmount} innovation grant for being at the cutting edge of agricultural technology!`;
+    }
     
     return {
         type: 'technology',
-        techName: event.name,
-        effect: event.effect,
-        magnitude: event.magnitude,
-        day: day + Math.floor(Math.random() * 15),
-        message: `Technology news: ${event.name} event announced.`
+        subType: 'innovation_grant',
+        day,
+        amount: grantAmount,
+        message
+    };
+}
+
+// Create research breakthrough event
+function createResearchBreakthroughEvent(day) {
+    // Random duration for the breakthrough effect (15-30 days)
+    const duration = Math.floor(Math.random() * 16) + 15;
+    
+    return {
+        type: 'technology',
+        subType: 'research_breakthrough',
+        day,
+        duration,
+        discount: 0.3, // 30% discount on technology research
+        message: `Research breakthrough! Technology costs reduced by 30% for the next month.`
+    };
+}
+
+// Create technology setback event
+function createTechnologySetbackEvent(day) {
+    // Random setback amount
+    const setbackAmount = Math.floor(Math.random() * 3000) + 2000;
+    
+    return {
+        type: 'technology',
+        subType: 'technology_setback',
+        day,
+        amount: setbackAmount,
+        message: `Technology setback! Equipment malfunction has cost you $${setbackAmount} in repairs.`
     };
 }
 
@@ -433,26 +526,27 @@ export function applyPolicyEvent(event, balance) {
 }
 
 // Apply technology event
-export function applyTechnologyEvent(event, balance) {
-    let message = '';
-    let balanceChange = 0;
+export function applyTechnologyEvent(event, balance, researchedTechs = []) {
+    let newBalance = balance;
+    let message = event.message;
     
-    switch (event.effect) {
-        case 'research_discount':
-            message = `Research breakthrough! Technology costs reduced by ${Math.round((1 - event.magnitude) * 100)}% for the next month.`;
+    switch (event.subType) {
+        case 'innovation_grant':
+            // Add grant to balance
+            newBalance += event.amount;
             break;
-        case 'research_bonus':
-            balanceChange = event.magnitude;
-            message = `You received a $${event.magnitude.toLocaleString()} innovation grant for farm research!`;
+        case 'research_breakthrough':
+            // This is handled in the game's research cost calculation
+            // No immediate balance change
             break;
-        case 'research_options':
-            message = `Climate tech expo: New research opportunities may become available soon.`;
+        case 'technology_setback':
+            // Deduct setback cost from balance
+            newBalance -= event.amount;
             break;
     }
     
     return {
-        message,
-        balanceChange,
-        newBalance: balance + balanceChange
+        newBalance,
+        message
     };
 }
