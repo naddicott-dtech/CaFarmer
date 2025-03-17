@@ -8,6 +8,11 @@
 
 // Generate a random event based on the current state of the farm
 export function generateRandomEvent(farmState) {
+    // Prevent duplicate event generation by adding a small random factor to probability
+    if (Math.random() < 0.5) {
+        return null; // 50% chance to not generate an event at all
+    }
+    
     // Determine what type of event to generate
     const eventTypes = [
         { type: 'weather', probability: 0.4 },
@@ -564,7 +569,7 @@ export function applyDroughtEvent(event, grid, waterReserve, techs = []) {
     
     return {
         waterReserve: newWaterReserve,
-        message: event.message,
+        message: event.message || "Drought conditions affecting your farm.", // Default message to prevent undefined
         skipped: false,
         continueEvent,
         nextDuration,
@@ -619,7 +624,7 @@ export function applyHeatwaveEvent(event, grid, waterReserve, techs = []) {
     
     return {
         waterReserve: newWaterReserve,
-        message: event.message,
+        message: event.message || "Heatwave affecting your farm.", // Default message to prevent undefined
         skipped: false,
         continueEvent,
         nextDuration
@@ -650,7 +655,7 @@ export function applyFrostEvent(event, grid, techs = []) {
     }
     
     return {
-        message: event.message
+        message: event.message || "Frost has affected your crops!"  // Default message to prevent undefined
     };
 }
 
@@ -679,7 +684,7 @@ export function applyMarketEvent(event, marketPrices, crops) {
     
     return {
         marketPrices: newMarketPrices,
-        message: event.message
+        message: event.message || "Market conditions have changed." // Default message to prevent undefined
     };
 }
 
@@ -689,7 +694,7 @@ export function applyPolicyEvent(event, balance) {
     
     return {
         newBalance,
-        message: event.message,
+        message: event.message || "New policy enacted.",  // Default message to prevent undefined
         balanceChange: event.balanceChange || 0
     };
 }
@@ -697,7 +702,7 @@ export function applyPolicyEvent(event, balance) {
 // Apply technology event
 export function applyTechnologyEvent(event, balance, researchedTechs = []) {
     let newBalance = balance;
-    let message = event.message;
+    let message = event.message || "Technology event occurred.";  // Default message to prevent undefined
     
     switch (event.subType) {
         case 'innovation_grant':
