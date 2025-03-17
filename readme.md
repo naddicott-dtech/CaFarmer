@@ -1,4 +1,4 @@
-```markdown
+
 # California Climate Farmer - Implementation Guide
 
 ## Project Overview
