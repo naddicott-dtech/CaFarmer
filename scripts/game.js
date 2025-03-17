@@ -80,10 +80,6 @@ export class CaliforniaClimateFarmer {
 
         // Initialize test mode if active
         if (this.testMode) {
-            // This would import test strategies and set up test mode
-            // import('./test/test-strategies.js').then(module => {
-            //     this.setupTestMode(module);
-            // });
             this.setupTestMode();
         }
     }
@@ -153,7 +149,18 @@ export class CaliforniaClimateFarmer {
 
         // Generate random events occasionally
         if (Math.random() < 0.01) {
-            const newEvent = Events.generateRandomEvent(this.climate, this.day);
+            // Pass relevant farm state to event generators
+            const farmState = {
+                climate: this.climate,
+                day: this.day,
+                season: this.season,
+                waterReserve: this.waterReserve,
+                farmHealth: this.farmHealth,
+                balance: this.balance,
+                researchedTechs: this.researchedTechs
+            };
+            
+            const newEvent = Events.generateRandomEvent(farmState);
             if (newEvent) {
                 this.pendingEvents.push(newEvent);
                 this.addEvent(newEvent.message, newEvent.isAlert || false);
@@ -262,17 +269,17 @@ export class CaliforniaClimateFarmer {
     // Advance to next year
     advanceYear() {
         this.year++;
-    
+
         // Interest on bank balance (if positive)
         if (this.balance > 0) {
             const interest = Math.floor(this.balance * 0.05);
             this.balance += interest;
             this.addEvent(`Earned $${interest} in interest on your positive balance.`);
         }
-    
+
         // Calculate annual farm value
         this.farmValue = calculateFarmValue(this.grid, this.technologies);
-    
+
         // Calculate sustainability metrics
         const sustainabilityScore = this.calculateSustainabilityScore();
         
@@ -281,13 +288,13 @@ export class CaliforniaClimateFarmer {
         this.logger.log(`-- Soil Health: ${sustainabilityScore.soilScore}`, 2);
         this.logger.log(`-- Crop Diversity: ${sustainabilityScore.diversityScore}`, 2);
         this.logger.log(`-- Technology: ${sustainabilityScore.techScore}`, 2);
-    
+
         // Climate change effect - increase drought probability slightly each year
         this.climate.droughtProbability += 0.005;
         this.climate.heatwaveProbability += 0.005;
-    
+
         this.addEvent(`Happy New Year! You've completed Year ${this.year-1} of your farm.`);
-    
+
         // Sustainability-based subsidy instead of time-based
         if (sustainabilityScore.total >= 70) {
             // Large subsidy for highly sustainable farms
@@ -308,7 +315,7 @@ export class CaliforniaClimateFarmer {
             // No subsidy for unsustainable farms
             this.addEvent(`Your farm did not qualify for government subsidies this year due to unsustainable practices.`);
         }
-    
+
         // Major milestone event every 10 years
         if (this.year % 10 === 0) {
             this.addEvent(`Major farm milestone: ${this.year} years of operation!`);
@@ -422,7 +429,7 @@ export class CaliforniaClimateFarmer {
             techScore
         };
     }
-    
+
     // Process pending events
     processPendingEvents() {
         // Process any events that should occur today
@@ -489,7 +496,7 @@ export class CaliforniaClimateFarmer {
                     this.addEvent(policyResult.message, policyResult.balanceChange < 0);
                     break;
                 case 'technology':
-                    const techResult = Events.applyTechnologyEvent(event, this.balance);
+                    const techResult = Events.applyTechnologyEvent(event, this.balance, this.researchedTechs);
                     this.balance = techResult.newBalance;
                     this.addEvent(techResult.message);
                     break;
@@ -759,14 +766,12 @@ export class CaliforniaClimateFarmer {
     }
 
     // TEST MODE METHODS (for use with test harness) ---------------------------
-    // These methods would usually be imported from test-strategies.js
     setupTestMode() {
         // Implementation would be in test-strategies.js
         this.logger.log(`Test mode enabled: ${this.testStrategy}`);
     }
 
     runTestUpdate() {
-        // Implementation would be in test-strategies.js
         // Check for test termination
         if (this.autoTerminate && (this.year >= this.testEndYear || this.balance <= 0)) {
             this.logger.log(`Test termination condition met. Year: ${this.year}, Balance: ${this.balance}`);
