@@ -27,8 +27,8 @@ California Climate Farmer is a browser-based simulation game designed to educate
 | |-- ui.js # UI Manager: Handles browser UI rendering and interactions
 | |-- utils.js # Utility functions: Formatting, calculations, Logger class
 | |-- test/ # Headless testing framework
-| |-- test-harness.js # TestHarness class: Manages execution of test strategies
-| |-- strategies.js # Implementations of automated farming strategies
+| | |-- test-harness.js # TestHarness class: Manages execution of test strategies
+| | |-- strategies.js # Implementations of automated farming strategies
 |-- TDD.md # Technical Design Document
 |-- README.md # Project overview and guide (this file)
 ```
