@@ -120,53 +120,59 @@ function setupWaterSavingInitial(game) {
 // --- Strategy Update Functions (Called each tick via game.strategyTick) ---
 
 function updateMonocultureStrategy(game) {
-    const cropId = 'corn'; // The crop for this strategy
-
-    // Only perform actions periodically (e.g., every 3 days) to reduce overhead/log spam
+    const cropId = 'corn';
     if (game.day % 3 !== 0) return;
 
     let harvested = 0, planted = 0, irrigated = 0, fertilized = 0;
+    const irrigationCost = game.irrigationCost; // Get costs once
+    const fertilizeCost = game.fertilizeCost;
+    const plantCost = Math.round(game.getCropById(cropId).basePrice * game.plantingCostFactor); // Approx plant cost
 
     for (let row = 0; row < game.gridSize; row++) {
         for (let col = 0; col < game.gridSize; col++) {
             const cell = game.grid[row][col];
 
-            // Harvest if ready
             if (cell.harvestReady) {
                 if (game.harvestCell(row, col)) harvested++;
             }
-            // Plant if empty (after potential harvest)
-            // Check cell again in case harvest just happened
-            const currentCellState = game.grid[row][col]; // Re-fetch cell state
+            const currentCellState = game.grid[row][col]; // Re-fetch state
             if (currentCellState.crop.id === 'empty') {
-                if (game.plantCrop(row, col, cropId)) planted++;
+                // *** ADD BALANCE CHECK ***
+                if (game.balance >= plantCost) {
+                     if (game.plantCrop(row, col, cropId)) planted++;
+                }
             }
-            // Irrigate if needed (and not empty)
             else if (!currentCellState.irrigated && currentCellState.waterLevel < 50) {
-                if (game.irrigateCell(row, col)) irrigated++;
+                // *** ADD BALANCE CHECK ***
+                if (game.balance >= irrigationCost) {
+                    if (game.irrigateCell(row, col)) irrigated++;
+                }
             }
-            // Fertilize if needed (and not empty)
-            else if (!currentCellState.fertilized && currentCellState.growthProgress > 10) { // Don't fertilize immediately
-                if (game.fertilizeCell(row, col)) fertilized++;
+            else if (!currentCellState.fertilized && currentCellState.growthProgress > 10) {
+                // *** ADD BALANCE CHECK ***
+                 if (game.balance >= fertilizeCost) {
+                    if (game.fertilizeCell(row, col)) fertilized++;
+                 }
             }
         }
     }
-    if(harvested || planted || irrigated || fertilized)
-     game.logger.log(`Mono Tick: H:${harvested}, P:${planted}, I:${irrigated}, F:${fertilized}`, 3); // Verbose log
+    if(harvested || planted || irrigated || fertilized) {
+        // *** CHANGE LOG LEVEL HERE ***
+        game.logger.log(`Mono Tick: H:${harvested}, P:${planted}, I:${irrigated}, F:${fertilized}`, 3); // Changed to 3 (VRB)
+    }
 
-     // Simple research goal
-     if (game.day % 30 === 0) { // Check research funding monthly
-        // *** FIX: Get cost from game.technologies or helper ***
+     // Research goal check
+     if (game.day % 30 === 0) {
         const dripCost = game.getTechnologyCost('drip_irrigation');
         const sensorsCost = game.getTechnologyCost('soil_sensors');
         const dronesCost = game.getTechnologyCost('precision_drones');
 
-        if (!game.hasTechnology('drip_irrigation') && game.balance > dripCost * 1.2) {
+         // *** ADD BALANCE CHECKS BEFORE ATTEMPTING RESEARCH ***
+        if (!game.hasTechnology('drip_irrigation') && game.balance >= dripCost) { // Check exact cost now
             game.researchTechnology('drip_irrigation');
-        } else if (!game.hasTechnology('soil_sensors') && game.balance > sensorsCost * 1.2) {
-             // Research sensors as prerequisite for drones
+        } else if (!game.hasTechnology('soil_sensors') && game.balance >= sensorsCost) {
              game.researchTechnology('soil_sensors');
-        } else if (!game.hasTechnology('precision_drones') && game.hasTechnology('soil_sensors') && game.balance > dronesCost * 1.2) {
+        } else if (!game.hasTechnology('precision_drones') && game.hasTechnology('soil_sensors') && game.balance >= dronesCost) {
             game.researchTechnology('precision_drones');
         }
      }
@@ -178,6 +184,9 @@ function updateDiverseCropsStrategy(game) {
      const cropIds = crops.filter(c => c.id !== 'empty').map(c => c.id);
      if (cropIds.length === 0) return;
      let harvested = 0, planted = 0, irrigated = 0, fertilized = 0;
+     const irrigationCost = game.irrigationCost;
+     const fertilizeCost = game.fertilizeCost;
+     // Estimate average planting cost? Or check per crop? Check per crop is safer.
 
      for (let row = 0; row < game.gridSize; row++) {
         for (let col = 0; col < game.gridSize; col++) {
@@ -186,37 +195,48 @@ function updateDiverseCropsStrategy(game) {
             if (cell.harvestReady) {
                 if (game.harvestCell(row, col)) harvested++;
             }
-            // Re-check state after potential harvest
             const currentCellState = game.grid[row][col];
             if (currentCellState.crop.id === 'empty') {
-                // Rotate crop based on day and position
                 const cropIndex = (row + col + Math.floor(game.day / 10)) % cropIds.length;
                 const cropId = cropIds[cropIndex];
-                if (game.plantCrop(row, col, cropId)) planted++;
+                 const cropToPlant = game.getCropById(cropId);
+                 const plantCost = Math.round(cropToPlant.basePrice * game.plantingCostFactor);
+                 // *** ADD BALANCE CHECK ***
+                 if (game.balance >= plantCost) {
+                    if (game.plantCrop(row, col, cropId)) planted++;
+                 }
             }
-            else if (!currentCellState.irrigated && currentCellState.waterLevel < 60) { // Irrigate a bit more readily
-                 if (game.irrigateCell(row, col)) irrigated++;
+            else if (!currentCellState.irrigated && currentCellState.waterLevel < 60) {
+                 // *** ADD BALANCE CHECK ***
+                 if (game.balance >= irrigationCost) {
+                    if (game.irrigateCell(row, col)) irrigated++;
+                 }
             }
             else if (!currentCellState.fertilized && currentCellState.growthProgress > 20) {
-                 if (game.fertilizeCell(row, col)) fertilized++;
+                 // *** ADD BALANCE CHECK ***
+                 if (game.balance >= fertilizeCost) {
+                    if (game.fertilizeCell(row, col)) fertilized++;
+                 }
             }
         }
      }
-      if(harvested || planted || irrigated || fertilized)
-         game.logger.log(`Diverse Tick: H:${harvested}, P:${planted}, I:${irrigated}, F:${fertilized}`, 3);
+      if(harvested || planted || irrigated || fertilized) {
+         // *** CHANGE LOG LEVEL HERE ***
+         game.logger.log(`Diverse Tick: H:${harvested}, P:${planted}, I:${irrigated}, F:${fertilized}`, 3); // Changed to 3 (VRB)
+      }
 
      // Research goal: Soil health focus
      if (game.day % 30 === 0) {
-         // *** FIX: Get costs from game ***
          const noTillCost = game.getTechnologyCost('no_till_farming');
          const sensorsCost = game.getTechnologyCost('soil_sensors');
          const silvoCost = game.getTechnologyCost('silvopasture');
 
-         if (!game.hasTechnology('no_till_farming') && game.balance > noTillCost * 1.2) {
+         // *** ADD BALANCE CHECKS ***
+         if (!game.hasTechnology('no_till_farming') && game.balance >= noTillCost) {
              game.researchTechnology('no_till_farming');
-         } else if (!game.hasTechnology('soil_sensors') && game.balance > sensorsCost * 1.2) {
+         } else if (!game.hasTechnology('soil_sensors') && game.balance >= sensorsCost) {
              game.researchTechnology('soil_sensors');
-         } else if (!game.hasTechnology('silvopasture') && game.hasTechnology('no_till_farming') && game.balance > silvoCost * 1.2) {
+         } else if (!game.hasTechnology('silvopasture') && game.hasTechnology('no_till_farming') && game.balance >= silvoCost) {
              game.researchTechnology('silvopasture');
          }
      }
@@ -224,8 +244,11 @@ function updateDiverseCropsStrategy(game) {
 
 function updateTechFocusStrategy(game) {
     const incomeCrop = 'lettuce';
+    const incomeCropCost = Math.round(game.getCropById(incomeCrop).basePrice * game.plantingCostFactor);
+    const irrigationCost = game.irrigationCost;
 
-     // Basic farm management (less frequent to save compute?)
+
+     // Basic farm management
      if (game.day % 5 === 0) {
          let harvested = 0, planted = 0, irrigated = 0;
          for (let row = 0; row < game.gridSize; row++) {
@@ -234,34 +257,38 @@ function updateTechFocusStrategy(game) {
                 if (cell.harvestReady) {
                     if (game.harvestCell(row, col)) harvested++;
                 }
-                 // Re-check state after potential harvest
                  const currentCellState = game.grid[row][col];
-                // Only replant in the designated income area
                 if (currentCellState.crop.id === 'empty' && row < Math.ceil(game.gridSize / 2) && col < Math.ceil(game.gridSize / 2)) {
-                    if (game.plantCrop(row, col, incomeCrop)) planted++;
+                     // *** ADD BALANCE CHECK ***
+                     if (game.balance >= incomeCropCost) {
+                        if (game.plantCrop(row, col, incomeCrop)) planted++;
+                     }
                 }
-                // Minimal maintenance
                 else if (currentCellState.crop.id !== 'empty' && !currentCellState.irrigated && currentCellState.waterLevel < 30) {
-                     if(game.irrigateCell(row, col)) irrigated++;
+                     // *** ADD BALANCE CHECK ***
+                     if (game.balance >= irrigationCost) {
+                        if(game.irrigateCell(row, col)) irrigated++;
+                     }
                 }
             }
          }
-          if(harvested || planted || irrigated)
-             game.logger.log(`Tech Tick: H:${harvested}, P:${planted}, I:${irrigated}`, 3);
+          if(harvested || planted || irrigated) {
+            // *** CHANGE LOG LEVEL HERE ***
+             game.logger.log(`Tech Tick: H:${harvested}, P:${planted}, I:${irrigated}`, 3); // Changed to 3 (VRB)
+          }
      }
 
 
-     // Aggressive research check (more frequent)
+     // Aggressive research check
      if (game.day % 10 === 0) {
          const researchQueue = ['soil_sensors', 'drip_irrigation', 'precision_drones', 'ai_irrigation', 'drought_resistant', 'no_till_farming', 'renewable_energy', 'greenhouse', 'silvopasture'];
          for (const techId of researchQueue) {
             const tech = game.technologies.find(t => t.id === techId);
-             // *** FIX: Use tech.cost if tech is found ***
-            if (tech && !tech.researched && game.balance > tech.cost * 1.1) { // Lower threshold
-                // Attempt research (will fail if prereqs not met)
+            // *** ADD BALANCE CHECK (CHECKING EXACT COST) ***
+            if (tech && !tech.researched && game.balance >= tech.cost) {
                 if (game.researchTechnology(techId)) {
-                    game.logger.log(`Tech Strategy researching: ${techId}`, 2);
-                    break; // Research only one per check cycle
+                    game.logger.log(`Tech Strategy researching: ${techId}`, 2); // Log successful research at DBG level
+                    break;
                 }
             }
          }
@@ -271,12 +298,11 @@ function updateTechFocusStrategy(game) {
 function updateWaterSavingStrategy(game) {
     if (game.day % 3 !== 0) return;
 
-     // Find crops with lower water use dynamically
-     const waterEfficient = crops.filter(c => c.id !== 'empty' && c.waterUse < 3.0).map(c => c.id);
-     const targetCrops = waterEfficient.length > 0 ? waterEfficient : ['grapes', 'lettuce']; // Fallback
+     const targetCrops = crops.filter(c => c.id !== 'empty' && c.waterUse < 3.0).map(c => c.id);
+     if (targetCrops.length === 0) targetCrops.push('lettuce'); // Fallback
 
-     if (targetCrops.length === 0) return;
      let harvested = 0, planted = 0, irrigated = 0;
+     const irrigationCost = game.irrigationCost;
 
      for (let row = 0; row < game.gridSize; row++) {
         for (let col = 0; col < game.gridSize; col++) {
@@ -284,37 +310,46 @@ function updateWaterSavingStrategy(game) {
             if (cell.harvestReady) {
                 if (game.harvestCell(row, col)) harvested++;
             }
-             // Re-check state after potential harvest
              const currentCellState = game.grid[row][col];
             if (currentCellState.crop.id === 'empty') {
                 const cropIndex = (row * game.gridSize + col) % targetCrops.length;
-                if (game.plantCrop(row, col, targetCrops[cropIndex])) planted++;
+                const cropId = targetCrops[cropIndex];
+                const cropToPlant = game.getCropById(cropId);
+                const plantCost = Math.round(cropToPlant.basePrice * game.plantingCostFactor);
+                 // *** ADD BALANCE CHECK ***
+                 if (game.balance >= plantCost) {
+                    if (game.plantCrop(row, col, cropId)) planted++;
+                 }
             }
             // Very conservative irrigation
-            else if (!currentCellState.irrigated && currentCellState.waterLevel < 35 && game.waterReserve > 20) { // Only if reserve isn't critical
-                 if (game.irrigateCell(row, col)) irrigated++;
+            else if (!currentCellState.irrigated && currentCellState.waterLevel < 35 && game.waterReserve > 20) {
+                 // *** ADD BALANCE CHECK ***
+                 if (game.balance >= irrigationCost) {
+                    if (game.irrigateCell(row, col)) irrigated++;
+                 }
             }
-             // Less fertilization to save money for water tech
         }
      }
-      if(harvested || planted || irrigated)
-         game.logger.log(`WaterSave Tick: H:${harvested}, P:${planted}, I:${irrigated}`, 3);
+      if(harvested || planted || irrigated) {
+        // *** CHANGE LOG LEVEL HERE ***
+         game.logger.log(`WaterSave Tick: H:${harvested}, P:${planted}, I:${irrigated}`, 3); // Changed to 3 (VRB)
+      }
 
      // Research: Water tech priority
      if (game.day % 30 === 0) {
-         // *** FIX: Get costs from game ***
          const dripCost = game.getTechnologyCost('drip_irrigation');
          const sensorsCost = game.getTechnologyCost('soil_sensors');
          const droughtResCost = game.getTechnologyCost('drought_resistant');
          const aiIrrigationCost = game.getTechnologyCost('ai_irrigation');
 
-         if (!game.hasTechnology('drip_irrigation') && game.balance > dripCost * 1.2) {
+         // *** ADD BALANCE CHECKS ***
+         if (!game.hasTechnology('drip_irrigation') && game.balance >= dripCost) {
              game.researchTechnology('drip_irrigation');
-         } else if (!game.hasTechnology('soil_sensors') && game.balance > sensorsCost * 1.2) { // Sensors help optimize
+         } else if (!game.hasTechnology('soil_sensors') && game.balance >= sensorsCost) {
              game.researchTechnology('soil_sensors');
-         } else if (!game.hasTechnology('drought_resistant') && game.balance > droughtResCost * 1.2) {
+         } else if (!game.hasTechnology('drought_resistant') && game.balance >= droughtResCost) {
              game.researchTechnology('drought_resistant');
-         } else if (!game.hasTechnology('ai_irrigation') && game.hasTechnology('drip_irrigation') && game.hasTechnology('soil_sensors') && game.balance > aiIrrigationCost * 1.2) {
+         } else if (!game.hasTechnology('ai_irrigation') && game.hasTechnology('drip_irrigation') && game.hasTechnology('soil_sensors') && game.balance >= aiIrrigationCost) {
              game.researchTechnology('ai_irrigation');
          }
      }
