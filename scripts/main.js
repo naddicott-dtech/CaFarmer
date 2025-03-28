@@ -1,219 +1,78 @@
 /**
- * California Climate Farmer - Main Entry Point
- * 
- * This file serves as the entry point for the game, handling initial setup,
- * splash screen interactions, and launching either the main game or test mode.
+ * California Climate Farmer - Main Entry Point (UI Version)
+ *
+ * Initializes and starts the interactive game using the UI Manager.
+ * Assumes this runs in a browser environment with the necessary HTML.
  */
 
-console.log('Loading main.js...');
+console.log('Loading main.js for UI game...');
 
-// Use dynamic imports with error handling
-let CaliforniaClimateFarmer, TestHarness;
+import { CaliforniaClimateFarmer } from './game.js';
 
-async function loadModules() {
-    try {
-        console.log('Importing game.js...');
-        const gameModule = await import('./game.js');
-        CaliforniaClimateFarmer = gameModule.CaliforniaClimateFarmer;
-        console.log('Successfully imported game.js');
-        
-        try {
-            console.log('Importing test-harness.js...');
-            const testModule = await import('./test/test-harness.js');
-            TestHarness = testModule.TestHarness;
-            console.log('Successfully imported test-harness.js');
-        } catch (error) {
-            console.error('Error importing test-harness.js:', error);
-        }
-    } catch (error) {
-        console.error('Error importing game.js:', error);
-    }
-}
-
-// Global game instance
+// Global game instance for the UI
 let gameInstance = null;
-let testHarness = null;
 
-// Initialize after modules are loaded - this is the key change
-loadModules().then(() => {
-    console.log('Modules loaded, setting up event listeners');
-    console.log("CaliforniaClimateFarmer:", CaliforniaClimateFarmer);
-    console.log("TestHarness:", TestHarness);
-    
-    // IMPORTANT: Wait for DOM to be ready, but do it HERE after modules loaded
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initializeGameControls);
-    } else {
-        // DOM already loaded, initialize immediately
-        initializeGameControls();
-    }
-});
+// Initialize the game once the DOM is ready
+function initializeGame() {
+    console.log("DOM ready - Initializing UI game controls...");
 
-// Moved into a separate function for clarity
-function initializeGameControls() {
-    console.log("DOM ready - Initializing game controls...");
-    
-    // First, remove any existing event listeners by cloning and replacing buttons
     const splashScreen = document.getElementById('splash-screen');
-    
-    // Handle regular game button
     const regularGameBtn = document.getElementById('regular-game-btn');
-    if (regularGameBtn) {
-        // Clone and replace to remove existing event listeners
+    // Remove or comment out references to test-mode-btn, test-options, run-selected-tests-btn
+
+    if (splashScreen && regularGameBtn) {
+        // Clone and replace to ensure clean event listeners
         const newRegularGameBtn = regularGameBtn.cloneNode(true);
         regularGameBtn.parentNode.replaceChild(newRegularGameBtn, regularGameBtn);
-        
-        // Add our game-specific event listener
+
         newRegularGameBtn.addEventListener('click', () => {
-            console.log("main.js: Regular game button click handler running!");
-            splashScreen.style.display = 'none';
+            console.log("Starting regular game...");
+            splashScreen.style.display = 'none'; // Hide splash
             startRegularGame();
         });
+
+         // Hide test mode button if it still exists in HTML
+         const testBtn = document.getElementById('test-mode-btn');
+         if(testBtn) testBtn.style.display = 'none';
+
     } else {
-        console.error('Regular game button not found in DOM');
+        console.error('Splash screen or regular game button not found. Cannot initialize.');
+        // Optionally display an error to the user
+        document.body.innerHTML = '<p style="color: red; font-size: 1.2em;">Error: Game UI elements missing. Cannot start.</p>';
     }
 
-    // TEST MODE setup
-    const testModeBtn = document.getElementById('test-mode-btn');
-    const testOptions = document.getElementById('test-options');
-    
-    if (testModeBtn) {
-        // Clone and replace
-        const newTestModeBtn = testModeBtn.cloneNode(true);
-        testModeBtn.parentNode.replaceChild(newTestModeBtn, testModeBtn);
-        
-        // Show test options when Test Mode button is clicked
-        newTestModeBtn.addEventListener('click', () => {
-            console.log("main.js: Test mode button click handler running!");
-            
-            if (!TestHarness) {
-                console.error("TestHarness module not loaded. Cannot run tests.");
-                alert("Error: Test module not loaded. Check console for details.");
-                return;
-            }
-            
-            testOptions.style.display = 'block';
-            
-            // Initialize test harness if not already done
-            if (!testHarness) {
-                console.log("Initializing TestHarness");
-                testHarness = new TestHarness();
-            }
-        });
-    } else {
-        console.warn("Test mode button not found in DOM");
-    }
-
-    // Handle test selection
-    if (testOptions) {
-        console.log("Setting up test checkboxes");
-        
-        document.querySelectorAll('.test-list input[type="checkbox"]').forEach(checkbox => {
-            // Clone and replace checkboxes too for consistency
-            const newCheckbox = checkbox.cloneNode(true);
-            checkbox.parentNode.replaceChild(newCheckbox, checkbox);
-            
-            newCheckbox.addEventListener('change', (e) => {
-                if (!testHarness) {
-                    console.error("TestHarness not initialized. Cannot select tests.");
-                    return;
-                }
-                
-                const testId = e.target.id.replace('test-', '');
-                console.log(`Test checkbox changed: ${testId}, checked=${e.target.checked}`);
-
-                if (testId === 'all') {
-                    // When "Run All Tests" is toggled, update all other checkboxes
-                    const isChecked = e.target.checked;
-                    document.querySelectorAll('.test-list input[type="checkbox"]:not(#test-all)').forEach(cb => {
-                        cb.checked = isChecked;
-                        cb.disabled = isChecked;
-                    });
-                } else {
-                    // Individual test selection
-                    if (e.target.checked) {
-                        testHarness.selectTest(testId);
-                        console.log(`Selected test: ${testId}`);
-                    } else {
-                        testHarness.deselectTest(testId);
-                        console.log(`Deselected test: ${testId}`);
-                    }
-                }
-            });
-        });
-    } else {
-        console.warn("Test options panel not found in DOM");
-    }
-
-    // Run selected tests button
-    const runSelectedTestsBtn = document.getElementById('run-selected-tests-btn');
-    if (runSelectedTestsBtn) {
-        // Clone and replace
-        const newRunSelectedTestsBtn = runSelectedTestsBtn.cloneNode(true);
-        runSelectedTestsBtn.parentNode.replaceChild(newRunSelectedTestsBtn, runSelectedTestsBtn);
-        
-        console.log("Setting up run tests button with new handler");
-        
-        newRunSelectedTestsBtn.addEventListener('click', () => {
-            console.log("main.js: Run selected tests button click handler running!");
-            
-            if (!testHarness) {
-                console.error("TestHarness not initialized. Cannot run tests.");
-                alert("Error: Test module not initialized. Check console for details.");
-                return;
-            }
-            
-            // Find the "test-all" checkbox - proper reference fix
-            const testAllCheckbox = document.getElementById('test-all');
-            
-            if (testAllCheckbox && testAllCheckbox.checked) {
-                console.log("'Test all' is checked, selecting all tests");
-                testHarness.selectAllTests();
-            }
-
-            console.log("Selected tests:", testHarness.selectedTests);
-            
-            if (testHarness.selectedTests.length === 0) {
-                console.warn("No tests selected");
-                alert('Please select at least one test to run.');
-                return;
-            }
-
-            console.log("Hiding splash screen and running tests");
-            splashScreen.style.display = 'none';
-            
-            try {
-                testHarness.runSelectedTests();
-                console.log("Tests started successfully");
-            } catch (error) {
-                console.error("Error running tests:", error);
-                alert("Error running tests. Check console for details.");
-            }
-        });
-    } else {
-        console.warn("Run tests button not found in DOM");
-    }
+     // Ensure test options panel is hidden
+     const testOptionsPanel = document.getElementById('test-options');
+     if (testOptionsPanel) testOptionsPanel.style.display = 'none';
 }
 
 function startRegularGame() {
-    if (!CaliforniaClimateFarmer) {
-        console.error("Game module not loaded. Cannot start game.");
-        alert("Error: Game module not loaded. Check console for details.");
+    if (gameInstance) {
+        console.warn("Game already running.");
         return;
     }
-    
     try {
-        // Initialize the game normally
-        console.log("Creating game instance...");
-        gameInstance = new CaliforniaClimateFarmer();
-        console.log("Game instance created, starting...");
-        gameInstance.start();
-        console.log("Game started successfully");
+        // Create game instance (NOT headless)
+        console.log("Creating game instance for UI...");
+        gameInstance = new CaliforniaClimateFarmer({ headless: false }); // Explicitly set headless to false
+        console.log("Game instance created, starting UI game loop...");
+        gameInstance.start(); // This will start the requestAnimationFrame loop
+        console.log("UI Game started successfully.");
     } catch (error) {
-        console.error("Error starting game:", error);
+        console.error("Error starting UI game:", error);
         alert("Error starting game. Check console for details.");
+        // Display error in UI?
     }
 }
 
-// Export game instance for potential external access
+// --- Initialization ---
+// Wait for the DOM to load before setting up controls
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeGame);
+} else {
+    // DOM already loaded
+    initializeGame();
+}
+
+// Export game instance for potential debugging from console
 export { gameInstance };
