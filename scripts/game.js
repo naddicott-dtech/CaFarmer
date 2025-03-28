@@ -485,19 +485,24 @@ export class CaliforniaClimateFarmer {
     processPendingEvents() {
         const activeEventsToday = this.pendingEvents.filter(event => event.day === this.day);
         const remainingEvents = this.pendingEvents.filter(event => event.day !== this.day);
-        this.pendingEvents = remainingEvents; // Update pending list immediately
+        this.pendingEvents = remainingEvents;
 
-        if (activeEventsToday.length > 0) {
-             this.logger.log(`Processing ${activeEventsToday.length} events for Day ${this.day}`, 2);
-        }
-
+        // No need to log if no events - reduce noise
+        // if (activeEventsToday.length > 0) {
+        //      this.logger.log(`Processing ${activeEventsToday.length} events for Day ${this.day}`, 2);
+        // }
 
         activeEventsToday.forEach(event => {
+             // Log the attempt to apply event at Debug level
              this.logger.log(`-- Applying event: ${event.type} (${event.subType || event.severity || ''})`, 2);
             let result = {};
             let continueEvent = null;
-            let logMsg = event.message; // Default log message
-            let logLvl = event.isAlert ? 1 : 2; // Log alerts at level 1
+            let logMsg = event.message;
+            // *** Default log level for results is now DEBUG (2) ***
+            let logLvl = 2;
+            // *** Promote level to INFO (1) for alerts or significant financial impact ***
+            if (event.isAlert) logLvl = 1;
+
 
             try {
                  switch (event.type) {
@@ -512,11 +517,13 @@ export class CaliforniaClimateFarmer {
                              this.waterReserve = result.waterReserve;
                              logMsg = result.message;
                              if (result.continueEvent) {
-                                 continueEvent = { ...event, day: this.day + 1, duration: result.nextDuration, message: result.message }; // Carry message forward
+                                 continueEvent = { ...event, day: this.day + 1, duration: result.nextDuration, message: result.message };
                              } else {
-                                 this.addEvent(`The drought has ended.`); this.logger.log('Drought event ended.', 1);
+                                 this.addEvent(`The drought has ended.`); this.logger.log('Drought event ended.', 1); // Log end at INFO
                              }
-                         } else { logMsg = null; } // Don't log skipped
+                             // Keep severe drought start at INFO
+                             if (event.severity === 'severe' && event.duration === result.nextDuration + 1) logLvl = 1;
+                         } else { logMsg = null; }
                         break;
                     case 'heatwave':
                         result = Events.applyHeatwaveEvent(event, this.grid, this.waterReserve, this.researchedTechs);
@@ -526,54 +533,68 @@ export class CaliforniaClimateFarmer {
                              if (result.continueEvent) {
                                 continueEvent = { ...event, day: this.day + 1, duration: result.nextDuration, message: result.message };
                              } else {
-                                 this.addEvent(`The heatwave has ended.`); this.logger.log('Heatwave event ended.', 1);
+                                 this.addEvent(`The heatwave has ended.`); this.logger.log('Heatwave event ended.', 1); // Log end at INFO
                              }
+                              // Keep initial heatwave log potentially at INFO
+                              if (event.duration === result.nextDuration + 1) logLvl = 1;
                          } else { logMsg = null; }
                         break;
                     case 'frost':
                          result = Events.applyFrostEvent(event, this.grid, this.researchedTechs);
                          logMsg = result.message;
+                         logLvl = 1; // Frost is generally important
                         break;
                     case 'market':
                          result = Events.applyMarketEvent(event, this.marketPrices, crops);
                         this.marketPrices = result.marketPrices;
                         logMsg = result.message;
+                         // Keep significant price changes or opportunities at INFO?
+                         if (event.direction === 'opportunity' || Math.abs(event.changePercent) > 25) logLvl = 1;
                         break;
                     case 'policy':
                          result = Events.applyPolicyEvent(event, this.balance);
                         this.balance = result.newBalance;
                          logMsg = result.message;
-                         if (result.balanceChange) logMsg += ` (Balance change: $${result.balanceChange.toLocaleString()})`;
+                         // Keep significant balance changes at INFO
+                         if (Math.abs(result.balanceChange) > 1000) { // Example threshold
+                             logMsg += ` (Balance change: $${result.balanceChange.toLocaleString()})`;
+                             logLvl = 1;
+                         }
                         break;
                     case 'technology':
                          result = Events.applyTechnologyEvent(event, this.balance, this.researchedTechs);
                         this.balance = result.newBalance;
                          logMsg = result.message;
-                         if(event.subType === 'innovation_grant' && event.amount > 0) logMsg += ` (+$${event.amount.toLocaleString()})`;
-                         if(event.subType === 'technology_setback') logMsg += ` (-$${event.amount.toLocaleString()})`;
+                         // Keep significant grants/setbacks at INFO
+                         if (event.subType === 'innovation_grant' && event.amount > 5000) {
+                              logMsg += ` (+$${event.amount.toLocaleString()})`;
+                              logLvl = 1;
+                         } else if (event.subType === 'technology_setback') {
+                              logMsg += ` (-$${event.amount.toLocaleString()})`;
+                              logLvl = 1; // Setbacks are important
+                         } else if (event.subType === 'research_breakthrough') {
+                             logLvl = 1; // Breakthroughs are important
+                         }
                         break;
                     default:
                          this.logger.log(`Unknown event type processed: ${event.type}`, 0);
                          logMsg = null;
                  }
 
-                 // Add resulting message to UI event log and logger
                  if (logMsg) {
                      this.addEvent(logMsg, event.isAlert);
-                     // Avoid duplicate logging if message is identical to event.message?
-                     // For now, log the potentially modified message.
+                     // Log result at the determined level (default DBG, promoted to INF for important ones)
                      this.logger.log(`Event Result: ${logMsg}`, logLvl);
                  }
 
-
-                 // Re-schedule continuing events
                  if (continueEvent) {
                      this.pendingEvents.push(continueEvent);
+                     // Log continuation at DEBUG level
                      this.logger.log(`-- Event ${event.type} continues tomorrow (Day ${continueEvent.day}), duration left: ${continueEvent.duration}`, 2);
                  }
             } catch (error) {
                  this.logger.log(`ERROR applying event ${event.type}: ${error.message}`, 0);
-                 console.error("Error during event processing:", error); // Keep console error for stack trace
+                 console.error("Error during event processing:", error);
             }
         });
     }
@@ -607,21 +628,18 @@ export class CaliforniaClimateFarmer {
              this.logger.log(`Invalid crop ID for planting: ${cropId}`, 0); return false;
         }
 
-        // *** FIX: Use the plantingCostFactor property from 'this' ***
         const plantingCost = Math.round(newCrop.basePrice * this.plantingCostFactor);
 
         if (this.balance < plantingCost) {
             const msg = `Cannot afford to plant ${newCrop.name}. Cost: $${plantingCost.toLocaleString()}, Balance: $${this.balance.toLocaleString()}`;
             this.addEvent(msg, true);
-            // *** CHANGE LOG LEVEL HERE ***
-            this.logger.log(msg, 2); // Changed from 1 to 2 (DBG)
+            this.logger.log(msg, 2); // DBG
             return false;
         }
         if (cell.crop.id !== 'empty') {
             const msg = `Cannot plant ${newCrop.name}, plot (${row}, ${col}) is already occupied by ${cell.crop.name}.`;
-            // Only log error if attempted manually, strategies might try planting occupied cells
             if (!this.testMode) this.addEvent(msg, true);
-            this.logger.log(msg, this.testMode ? 2 : 1); // Log less severely in test mode
+            this.logger.log(msg, this.testMode ? 2 : 1);
             return false;
         }
 
@@ -629,12 +647,12 @@ export class CaliforniaClimateFarmer {
         cell.plant(newCrop);
 
         const msg = `Planted ${newCrop.name} at (${row}, ${col}). Cost: $${plantingCost.toLocaleString()}`;
-        this.addEvent(msg); this.logger.log(msg, 2);
-
+        this.addEvent(msg);
+        // *** CHANGE LOG LEVEL HERE ***
+        this.logger.log(msg, 2); // Changed to DBG
         if (this.ui) {
             this.ui.updateHUD();
-            this.ui.showCellInfo(row, col); // Update if panel is open
-            // this.ui.render(); // Render handled by gameLoop
+            this.ui.showCellInfo(row, col);
         }
         return true;
     }
@@ -642,29 +660,27 @@ export class CaliforniaClimateFarmer {
     irrigateCell(row, col) {
          if (row < 0 || row >= this.gridSize || col < 0 || col >= this.gridSize) return false;
         const cell = this.grid[row][col];
-        // *** FIX: Use the irrigationCost property from 'this' ***
         const cost = this.irrigationCost;
 
         if (cell.crop.id === 'empty') { this.addEvent('Cannot irrigate empty plot.', true); this.logger.log(`Attempted to irrigate empty plot (${row}, ${col})`, 2); return false; }
-        if (cell.irrigated) { /*this.addEvent('Plot already irrigated today.', true);*/ this.logger.log(`Plot (${row}, ${col}) already irrigated today.`, 3); return false; } // Reduce log noise
+        if (cell.irrigated) { this.logger.log(`Plot (${row}, ${col}) already irrigated today.`, 3); return false; }
         if (this.balance < cost) {
             this.addEvent(`Cannot afford irrigation ($${cost}).`, true);
-            // *** CHANGE LOG LEVEL HERE ***
-            this.logger.log(`Cannot afford irrigation ($${cost}). Balance: $${this.balance}`, 2); // Changed from 1 to 2 (DBG)
+            this.logger.log(`Cannot afford irrigation ($${cost}). Balance: $${this.balance}`, 2); // DBG
             return false;
         }
 
         this.balance -= cost;
-        const waterEfficiency = this.getTechEffectValue('waterEfficiency', 1.0); // Default 1.0
+        const waterEfficiency = this.getTechEffectValue('waterEfficiency', 1.0);
         cell.irrigate(waterEfficiency);
 
         const msg = `Irrigated plot at (${row}, ${col}). Cost: $${cost.toLocaleString()}`;
-        this.addEvent(msg); this.logger.log(msg, 2);
-
+        this.addEvent(msg);
+        // *** CHANGE LOG LEVEL HERE ***
+        this.logger.log(msg, 2); // Changed to DBG
         if (this.ui) {
             this.ui.updateHUD();
             this.ui.showCellInfo(row, col);
-            // this.ui.render();
         }
         return true;
     }
@@ -672,15 +688,13 @@ export class CaliforniaClimateFarmer {
     fertilizeCell(row, col) {
          if (row < 0 || row >= this.gridSize || col < 0 || col >= this.gridSize) return false;
         const cell = this.grid[row][col];
-        // *** FIX: Use the fertilizeCost property from 'this' ***
         const cost = this.fertilizeCost;
 
         if (cell.crop.id === 'empty') { this.addEvent('Cannot fertilize empty plot.', true); this.logger.log(`Attempted to fertilize empty plot (${row}, ${col})`, 2); return false; }
-        if (cell.fertilized) { /*this.addEvent('Plot already fertilized.', true);*/ this.logger.log(`Plot (${row}, ${col}) already fertilized for this cycle.`, 3); return false; } // Reduce log noise
+        if (cell.fertilized) { this.logger.log(`Plot (${row}, ${col}) already fertilized for this cycle.`, 3); return false; }
         if (this.balance < cost) {
             this.addEvent(`Cannot afford fertilizer ($${cost}).`, true);
-             // *** CHANGE LOG LEVEL HERE ***
-            this.logger.log(`Cannot afford fertilizer ($${cost}). Balance: $${this.balance}`, 2); // Changed from 1 to 2 (DBG)
+            this.logger.log(`Cannot afford fertilizer ($${cost}). Balance: $${this.balance}`, 2); // DBG
             return false;
         }
 
@@ -690,12 +704,12 @@ export class CaliforniaClimateFarmer {
         cell.fertilize(fertilizerEfficiency);
 
         const msg = `Fertilized plot at (${row}, ${col}). Cost: $${cost.toLocaleString()}`;
-        this.addEvent(msg); this.logger.log(msg, 2);
-
+        this.addEvent(msg);
+         // *** CHANGE LOG LEVEL HERE ***
+        this.logger.log(msg, 2); // Changed to DBG
         if (this.ui) {
             this.ui.updateHUD();
             this.ui.showCellInfo(row, col);
-            // this.ui.render();
         }
         return true;
     }
@@ -712,23 +726,25 @@ export class CaliforniaClimateFarmer {
 
         if (result.value === undefined || result.yieldPercentage === undefined) {
              this.logger.log(`ERROR: Harvest calculation failed for plot (${row}, ${col})`, 0);
-             return false; // Indicate failure
+             return false;
         }
-        // Check if harvesting actually yielded anything
+
         if (result.value <= 0 && result.yieldPercentage <= 0) {
-             this.logger.log(`Harvested ${result.cropName} at (${row}, ${col}) yielded $0 (Yield: 0%). Plot reset.`, 2); // Log low-value harvests differently?
+            // Log zero-yield harvests at DEBUG level
+             this.logger.log(`Harvested ${result.cropName} at (${row}, ${col}) yielded $0 (Yield: 0%). Plot reset.`, 2); // DBG
         } else {
              this.balance += result.value;
              const msg = `Harvested ${result.cropName} at (${row}, ${col}) for $${result.value.toLocaleString()}. Yield: ${result.yieldPercentage}%`;
-             this.addEvent(msg); this.logger.log(msg, 1);
+             this.addEvent(msg);
+             // Keep successful harvests at INFO level
+             this.logger.log(msg, 1); // INF
         }
-
 
         if (this.ui) {
             this.ui.updateHUD();
             this.ui.showCellInfo(row, col);
         }
-        return true; // Indicate success even if yield was 0
+        return true;
     }
 
     researchTechnology(techId) {
@@ -736,7 +752,7 @@ export class CaliforniaClimateFarmer {
         if (!tech) { this.logger.log(`Technology ID not found: ${techId}`, 0); return false; }
         if (tech.researched) { this.logger.log(`${tech.name} already researched.`, 1); return false; }
 
-        if (!checkTechPrerequisites(tech, this.researchedTechs)) { // Use imported function
+        if (!checkTechPrerequisites(tech, this.researchedTechs)) {
             const msg = `Prerequisites not met for ${tech.name}.`;
             this.addEvent(msg, true); this.logger.log(msg, 1);
             return false;
@@ -745,8 +761,7 @@ export class CaliforniaClimateFarmer {
         if (this.balance < tech.cost) {
             const msg = `Cannot afford ${tech.name} ($${tech.cost.toLocaleString()}). Balance: $${this.balance.toLocaleString()}`;
             this.addEvent(msg, true);
-             // *** CHANGE LOG LEVEL HERE ***
-            this.logger.log(msg, 2); // Changed from 1 to 2 (DBG)
+            this.logger.log(msg, 2); // DBG
             return false;
         }
 
@@ -755,11 +770,13 @@ export class CaliforniaClimateFarmer {
         this.researchedTechs.push(tech.id);
 
         const msg = `Researched ${tech.name} for $${tech.cost.toLocaleString()}`;
-        this.addEvent(msg); this.logger.log(msg, 1); // Log successful research at INFO
+        this.addEvent(msg);
+        // Keep successful research at INFO level
+        this.logger.log(msg, 1); // INF
 
         if (this.ui) {
             this.ui.updateHUD();
-            if (this.ui.isResearchModalOpen) this.ui.showResearchModal(); // Update modal if open
+            if (this.ui.isResearchModalOpen) this.ui.showResearchModal();
         }
         return true;
     }
