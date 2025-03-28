@@ -13,7 +13,14 @@ import { Logger, calculateFarmHealth, calculateFarmValue } from './utils.js';
 import * as Events from './events.js';
 
 // --- Constants (Replacing Spreadsheet Named Ranges used directly) ---
-const ANNUAL_INTEREST_RATE = 0.05;
+// Suggestion A: Reduced passive income
+const ANNUAL_INTEREST_RATE = 0.015; // Reduced to 1.5%
+const SUSTAINABILITY_THRESHOLD_LOW = 40; // Min score for any subsidy
+const SUSTAINABILITY_THRESHOLD_MED = 60; // Threshold for medium subsidy
+const SUSTAINABILITY_THRESHOLD_HIGH = 75; // Threshold for high subsidy
+const SUSTAINABILITY_SUBSIDY_BASE = 100; // Base amount per % point above threshold? Or fixed amounts? Let's try scaling.
+const SUSTAINABILITY_SUBSIDY_FACTOR = 150; // e.g., 150 * (score - threshold)
+
 const PLANTING_COST_FACTOR = 0.4; // Factor of base crop price
 const IRRIGATION_COST = 200;
 const FERTILIZE_COST = 300;
@@ -44,7 +51,7 @@ export class CaliforniaClimateFarmer {
         this.season = 'Spring';
         this.seasonDay = 1;
         this.balance = 100000;
-        this.farmValue = 250000;
+        this.farmValue = 250000; // Initial value, recalculated yearly
         this.farmHealth = 85;
         this.waterReserve = 75;
         this.paused = false;
@@ -60,7 +67,8 @@ export class CaliforniaClimateFarmer {
 
         // Debug logging
         const loggerVerbosity = (this.headless && this.debugMode) ? 2 : (this.debugMode ? 2 : 1);
-        this.logger = new Logger(100, loggerVerbosity, this.headless); // Pass headless flag to logger
+        // Increase default max logs?
+        this.logger = new Logger(200, loggerVerbosity, this.headless); // Pass headless flag to logger
 
         // Game grid
         this.grid = [];
@@ -78,10 +86,10 @@ export class CaliforniaClimateFarmer {
 
         // Climate parameters
         this.climate = {
-            avgTemp: 70,
-            rainfall: 20,
+            avgTemp: 70, // Baseline avg temp - maybe adjust seasonally?
+            rainfall: 20, // Baseline annual rainfall? Not directly used now
             droughtProbability: 0.05,
-            floodProbability: 0.03,
+            floodProbability: 0.03, // Not implemented yet
             heatwaveProbability: 0.08
         };
 
@@ -90,16 +98,20 @@ export class CaliforniaClimateFarmer {
 
         // Initialize market prices
         this.updateMarketPrices();
+         // Recalculate initial farm value based on grid state
+         this.farmValue = calculateFarmValue(this.grid, this.technologies, this.balance);
+
 
         // UI manager (conditional)
         this.ui = null;
         if (!this.headless) {
-            // Ensure UIManager is only instantiated after DOM is ready if needed by UIManager constructor
-             if (document.readyState === 'loading') {
+             // Ensure UIManager is only instantiated after DOM is ready if needed by UIManager constructor
+             if (typeof window !== 'undefined' && document.readyState === 'loading') {
                  document.addEventListener('DOMContentLoaded', () => { this.ui = new UIManager(this); });
-             } else {
+             } else if (typeof window !== 'undefined') {
+                  // Check if DOM is already ready
                  this.ui = new UIManager(this);
-             }
+             } // No UI if not in a browser environment
         } else {
             this.logger.log('Running in Headless Mode');
         }
@@ -115,9 +127,11 @@ export class CaliforniaClimateFarmer {
         for (let row = 0; row < this.gridSize; row++) {
             this.grid[row] = [];
             for (let col = 0; col < this.gridSize; col++) {
+                // Maybe add slight initial variation to soil/water? For now, uniform.
                 this.grid[row][col] = new Cell();
             }
         }
+         this.logger.log(`Initialized ${this.gridSize}x${this.gridSize} grid.`, 2);
     }
 
     // Start the game (UI Mode)
@@ -128,15 +142,14 @@ export class CaliforniaClimateFarmer {
         }
          // Ensure UI is ready before starting loop/rendering
          if (!this.ui) {
-             // Possible race condition if DOMContentLoaded hasn't fired yet
-             // Retry after a short delay or handle more robustly
              setTimeout(() => this.start(), 100);
              console.warn("UI not ready, delaying start...");
              return;
          }
 
         this.paused = false; // Ensure game is not paused
-        this.lastUpdateTime = performance.now();
+        this.lastUpdateTime = typeof performance !== 'undefined' ? performance.now() : Date.now(); // Use performance if available
+
         if (this.ui) {
             this.ui.updateLegend();
             this.ui.render(); // Initial render
@@ -165,12 +178,16 @@ export class CaliforniaClimateFarmer {
         this.animationFrameId = requestAnimationFrame(this.gameLoop.bind(this));
 
         // Calculate elapsed time
-        const elapsed = timestamp - this.lastUpdateTime;
+         const currentTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        const elapsed = currentTime - this.lastUpdateTime;
 
         // Update game state if enough time has passed and game isn't paused
-        if (!this.paused && elapsed > this.updateInterval) {
+        if (!this.paused && elapsed >= this.updateInterval) { // Use >= for safety
             this.runTick(); // Execute one simulation step
-            this.lastUpdateTime = timestamp;
+            // Calculate how many full intervals have passed (in case of lag)
+            // For simplicity, we just reset the timer. Could run multiple ticks if needed.
+            this.lastUpdateTime = currentTime; // Reset timer relative to now
+
              // Update UI elements controlled by the main loop
             if (this.ui) {
                 this.ui.updateHUD(); // Update HUD based on new state
@@ -186,7 +203,7 @@ export class CaliforniaClimateFarmer {
         this.seasonDay++;
 
         // Update crop growth and conditions
-        this.updateFarmCells(); // Renamed from updateFarm for clarity
+        this.updateFarmCells();
 
         // Check for season change (every 90 days)
         if (this.seasonDay > 90) {
@@ -219,13 +236,8 @@ export class CaliforniaClimateFarmer {
             } catch(error) {
                 this.logger.log(`ERROR in strategyTick (${this.testStrategyId}): ${error.message}`, 0);
                  console.error("Error during strategy execution:", error);
-                 // Optionally stop the test?
-                 // For now, just log and continue
             }
         }
-
-        // Note: UI updates (HUD, render) are NOT called here.
-        // They are handled by the gameLoop (UI mode) or not at all (headless).
     }
 
 
@@ -249,13 +261,12 @@ export class CaliforniaClimateFarmer {
             );
 
             if (!isDuplicate) {
-                // Ensure event day is in the future relative to current day
-                if(newEvent.day <= this.day) { // Check if event day is today or in the past
-                    newEvent.day = this.day + Math.floor(Math.random() * 5) + 1; // Schedule 1-5 days ahead
+                if(newEvent.day <= this.day) {
+                    newEvent.day = this.day + Math.floor(Math.random() * 5) + 1;
                 }
                 this.pendingEvents.push(newEvent);
                 if (newEvent.forecastMessage) {
-                    this.addEvent(newEvent.forecastMessage); // Add forecast to UI log
+                    this.addEvent(newEvent.forecastMessage);
                 }
                 this.logger.log(`Scheduled event: ${newEvent.type} on day ${newEvent.day}. Forecast: ${newEvent.forecastMessage || 'None'}`, 2);
             } else {
@@ -272,7 +283,6 @@ export class CaliforniaClimateFarmer {
         for (let row = 0; row < this.gridSize; row++) {
             for (let col = 0; col < this.gridSize; col++) {
                 const cell = this.grid[row][col];
-                // Pass researched techs to cell update
                 const result = cell.update(this.waterReserve, this.researchedTechs);
 
                 if (result === 'harvest-ready') {
@@ -281,7 +291,6 @@ export class CaliforniaClimateFarmer {
             }
         }
 
-        // Add harvest-ready notifications (primarily for UI)
         harvestReadyCells.forEach(({ row, col }) => {
             const cell = this.grid[row][col];
             this.addEvent(`${cell.crop.name} at row ${row+1}, column ${col+1} is ready for harvest!`);
@@ -299,12 +308,11 @@ export class CaliforniaClimateFarmer {
 
         this.fluctuateMarketPrices();
 
-        // Simplified seasonal event scheduling & water recovery
         let recovery = 0;
         switch (this.season) {
             case 'Summer':
-                if (Math.random() < 0.3) this.pendingEvents.push(Events.scheduleDrought(this.day, this.climate.droughtProbability));
-                if (Math.random() < 0.4) this.pendingEvents.push(Events.scheduleHeatwave(this.day));
+                if (Math.random() < this.climate.droughtProbability) this.pendingEvents.push(Events.scheduleDrought(this.day, this.climate.droughtProbability));
+                if (Math.random() < this.climate.heatwaveProbability) this.pendingEvents.push(Events.scheduleHeatwave(this.day));
                 break;
             case 'Winter':
                 if (Math.random() < 0.3) this.pendingEvents.push(Events.scheduleFrost(this.day));
@@ -316,7 +324,8 @@ export class CaliforniaClimateFarmer {
                 break;
             case 'Fall':
                  if (Math.random() < 0.3) this.pendingEvents.push(Events.scheduleRain(this.day));
-                 if (Math.random() < 0.2) this.pendingEvents.push(Events.scheduleHeatwave(this.day));
+                 // Reduce late heatwave chance?
+                 if (Math.random() < (this.climate.heatwaveProbability * 0.5)) this.pendingEvents.push(Events.scheduleHeatwave(this.day));
                 recovery = Math.floor(5 + Math.random() * 10); // 5-15%
                 break;
         }
@@ -336,7 +345,6 @@ export class CaliforniaClimateFarmer {
 
         // Apply interest
         if (this.balance > 0) {
-            // *** FIX: Use the interestRate property defined in the constructor ***
             const interest = Math.floor(this.balance * this.interestRate);
              if (interest > 0) {
                 this.balance += interest;
@@ -346,41 +354,50 @@ export class CaliforniaClimateFarmer {
              }
         }
 
-        this.farmValue = calculateFarmValue(this.grid, this.technologies);
+        // Recalculate farm value (Suggestion B)
+        this.farmValue = calculateFarmValue(this.grid, this.technologies, this.balance);
         const sustainabilityScore = this.calculateSustainabilityScore();
 
         this.logger.log(`Year ${this.year} Summary: Balance: $${this.balance.toLocaleString()}, Value: $${this.farmValue.toLocaleString()}, Health: ${this.farmHealth}%, Water: ${this.waterReserve}%, SustainScore: ${sustainabilityScore.total}%`, 1);
         this.logger.log(` -- Sustain Breakdown: Soil ${sustainabilityScore.soilScore}%, Diversity ${sustainabilityScore.diversityScore}%, Tech ${sustainabilityScore.techScore}%`, 2);
 
-        // Climate change effect
+        // Climate change effect - apply annually
         this.climate.droughtProbability = Math.min(0.5, this.climate.droughtProbability + 0.005); // Cap probability
         this.climate.heatwaveProbability = Math.min(0.6, this.climate.heatwaveProbability + 0.005);
         this.logger.log(`Climate Change Update: Drought Prob ${this.climate.droughtProbability.toFixed(3)}, Heatwave Prob ${this.climate.heatwaveProbability.toFixed(3)}`, 2);
 
-
         this.addEvent(`Happy New Year! Completed Year ${this.year - 1}.`);
 
-        // Sustainability subsidy
+        // --- Sustainability subsidy (Suggestion A - Revised Logic) ---
         let bonus = 0;
-        if (sustainabilityScore.total >= 70) bonus = Math.round(10000 * (sustainabilityScore.total / 100));
-        else if (sustainabilityScore.total >= 50) bonus = Math.round(5000 * (sustainabilityScore.total / 100));
-        else if (sustainabilityScore.total >= 30) bonus = Math.round(2000 * (sustainabilityScore.total / 100));
+        let subsidyMsg = "Farm did not qualify for sustainability subsidies.";
+        if (sustainabilityScore.total >= SUSTAINABILITY_THRESHOLD_HIGH) {
+            // Highest tier - generous bonus
+             bonus = Math.round(SUSTAINABILITY_SUBSIDY_BASE * 2 * (sustainabilityScore.total - SUSTAINABILITY_THRESHOLD_HIGH + 10)); // Example scaling
+             subsidyMsg = `Received $${bonus.toLocaleString()} high-tier sustainability subsidy!`;
+        } else if (sustainabilityScore.total >= SUSTAINABILITY_THRESHOLD_MED) {
+            // Mid tier - moderate bonus
+            bonus = Math.round(SUSTAINABILITY_SUBSIDY_BASE * 1.5 * (sustainabilityScore.total - SUSTAINABILITY_THRESHOLD_MED + 5)); // Example scaling
+            subsidyMsg = `Received $${bonus.toLocaleString()} mid-tier sustainability subsidy.`;
+        } else if (sustainabilityScore.total >= SUSTAINABILITY_THRESHOLD_LOW) {
+            // Low tier - small bonus
+            bonus = Math.round(SUSTAINABILITY_SUBSIDY_BASE * (sustainabilityScore.total - SUSTAINABILITY_THRESHOLD_LOW + 1)); // Example scaling
+            subsidyMsg = `Received $${bonus.toLocaleString()} low-tier sustainability subsidy.`;
+        }
 
         if (bonus > 0) {
             this.balance += bonus;
-             const msg = `Received $${bonus.toLocaleString()} sustainability subsidy.`;
-             this.addEvent(msg);
-             this.logger.log(msg, 1);
-        } else {
-            this.addEvent(`Farm did not qualify for sustainability subsidies.`);
-            this.logger.log(`Farm did not qualify for sustainability subsidies.`, 1);
         }
+        this.addEvent(subsidyMsg);
+        this.logger.log(subsidyMsg, 1);
+        // --- End Subsidy Logic ---
 
+        // Milestone Events
         if (this.year % 10 === 0) {
             this.addEvent(`Major milestone: ${this.year} years of operation!`);
             if (Math.random() < 0.7) {
                 const policyEvent = Events.generatePolicyEvent(this.day, this.farmHealth);
-                 if (policyEvent.day <= this.day) policyEvent.day = this.day + 1; // Ensure future date
+                 if (policyEvent.day <= this.day) policyEvent.day = this.day + 1;
                 this.pendingEvents.push(policyEvent);
                 this.addEvent(`New climate policy announced.`);
                 this.logger.log(`Scheduled policy event for 10-year milestone: ${policyEvent.policyType || 'Unknown'}`, 1);
@@ -390,11 +407,10 @@ export class CaliforniaClimateFarmer {
         // Check for test termination condition AFTER year processing
         if (this.testMode && this.autoTerminate && (this.year >= this.testEndYear || this.balance <= 0)) {
              this.logger.log(`Test termination condition met after year processing. Year: ${this.year}, Balance: ${this.balance}`, 1);
-             // The test harness loop should catch this state on the *next* iteration's check.
         }
     }
 
-    // Calculate sustainability score (keep as is - same as provided before)
+    // Calculate sustainability score (keep as is)
     calculateSustainabilityScore() {
         let soilScore = 0;
         let cropDiversityScore = 0;
@@ -465,7 +481,7 @@ export class CaliforniaClimateFarmer {
     }
 
 
-    // Process pending events (keep as is - same as provided before)
+    // Process pending events (keep as is)
     processPendingEvents() {
         const activeEventsToday = this.pendingEvents.filter(event => event.day === this.day);
         const remainingEvents = this.pendingEvents.filter(event => event.day !== this.day);
@@ -544,6 +560,8 @@ export class CaliforniaClimateFarmer {
                  // Add resulting message to UI event log and logger
                  if (logMsg) {
                      this.addEvent(logMsg, event.isAlert);
+                     // Avoid duplicate logging if message is identical to event.message?
+                     // For now, log the potentially modified message.
                      this.logger.log(`Event Result: ${logMsg}`, logLvl);
                  }
 
@@ -562,7 +580,7 @@ export class CaliforniaClimateFarmer {
 
     // Add an event to the event log (UI only)
     addEvent(message, isAlert = false) {
-        if (this.headless) return; // Don't store events in headless mode
+        if (this.headless || !this.ui) return; // Don't store or display if headless or UI not ready
 
         const event = {
             date: `${this.season}, Year ${this.year}`,
@@ -572,9 +590,8 @@ export class CaliforniaClimateFarmer {
         this.events.unshift(event);
         if (this.events.length > 20) this.events.pop();
 
-        if (this.ui) {
-            this.ui.updateEventsList(); // Update UI immediately
-        }
+        // Only update UI if it exists
+        this.ui.updateEventsList();
     }
 
     // --- Player Actions (callable by UI or strategy) ---
@@ -590,7 +607,6 @@ export class CaliforniaClimateFarmer {
              this.logger.log(`Invalid crop ID for planting: ${cropId}`, 0); return false;
         }
 
-        // *** FIX: Use the plantingCostFactor property from 'this' ***
         const plantingCost = Math.round(newCrop.basePrice * this.plantingCostFactor);
 
         if (this.balance < plantingCost) {
@@ -600,9 +616,8 @@ export class CaliforniaClimateFarmer {
         }
         if (cell.crop.id !== 'empty') {
             const msg = `Cannot plant ${newCrop.name}, plot (${row}, ${col}) is already occupied by ${cell.crop.name}.`;
-            // Only log error if attempted manually, strategies might try planting occupied cells
             if (!this.testMode) this.addEvent(msg, true);
-            this.logger.log(msg, this.testMode ? 2 : 1); // Log less severely in test mode
+            this.logger.log(msg, this.testMode ? 2 : 1);
             return false;
         }
 
@@ -614,8 +629,7 @@ export class CaliforniaClimateFarmer {
 
         if (this.ui) {
             this.ui.updateHUD();
-            this.ui.showCellInfo(row, col); // Update if panel is open
-            // this.ui.render(); // Render handled by gameLoop
+            this.ui.showCellInfo(row, col);
         }
         return true;
     }
@@ -623,15 +637,14 @@ export class CaliforniaClimateFarmer {
     irrigateCell(row, col) {
          if (row < 0 || row >= this.gridSize || col < 0 || col >= this.gridSize) return false;
         const cell = this.grid[row][col];
-        // *** FIX: Use the irrigationCost property from 'this' ***
         const cost = this.irrigationCost;
 
         if (cell.crop.id === 'empty') { this.addEvent('Cannot irrigate empty plot.', true); this.logger.log(`Attempted to irrigate empty plot (${row}, ${col})`, 2); return false; }
-        if (cell.irrigated) { /*this.addEvent('Plot already irrigated today.', true);*/ this.logger.log(`Plot (${row}, ${col}) already irrigated today.`, 3); return false; } // Reduce log noise
+        if (cell.irrigated) { this.logger.log(`Plot (${row}, ${col}) already irrigated today.`, 3); return false; }
         if (this.balance < cost) { this.addEvent(`Cannot afford irrigation ($${cost}).`, true); this.logger.log(`Cannot afford irrigation ($${cost}). Balance: $${this.balance}`, 1); return false; }
 
         this.balance -= cost;
-        const waterEfficiency = this.getTechEffectValue('waterEfficiency', 1.0); // Default 1.0
+        const waterEfficiency = this.getTechEffectValue('waterEfficiency', 1.0);
         cell.irrigate(waterEfficiency);
 
         const msg = `Irrigated plot at (${row}, ${col}). Cost: $${cost.toLocaleString()}`;
@@ -640,7 +653,6 @@ export class CaliforniaClimateFarmer {
         if (this.ui) {
             this.ui.updateHUD();
             this.ui.showCellInfo(row, col);
-            // this.ui.render();
         }
         return true;
     }
@@ -648,11 +660,10 @@ export class CaliforniaClimateFarmer {
     fertilizeCell(row, col) {
          if (row < 0 || row >= this.gridSize || col < 0 || col >= this.gridSize) return false;
         const cell = this.grid[row][col];
-        // *** FIX: Use the fertilizeCost property from 'this' ***
         const cost = this.fertilizeCost;
 
         if (cell.crop.id === 'empty') { this.addEvent('Cannot fertilize empty plot.', true); this.logger.log(`Attempted to fertilize empty plot (${row}, ${col})`, 2); return false; }
-        if (cell.fertilized) { /*this.addEvent('Plot already fertilized.', true);*/ this.logger.log(`Plot (${row}, ${col}) already fertilized.`, 3); return false; } // Reduce log noise
+        if (cell.fertilized) { this.logger.log(`Plot (${row}, ${col}) already fertilized for this cycle.`, 3); return false; }
         if (this.balance < cost) { this.addEvent(`Cannot afford fertilizer ($${cost}).`, true); this.logger.log(`Cannot afford fertilizer ($${cost}). Balance: $${this.balance}`, 1); return false; }
 
 
@@ -666,7 +677,6 @@ export class CaliforniaClimateFarmer {
         if (this.ui) {
             this.ui.updateHUD();
             this.ui.showCellInfo(row, col);
-            // this.ui.render();
         }
         return true;
     }
@@ -675,29 +685,31 @@ export class CaliforniaClimateFarmer {
          if (row < 0 || row >= this.gridSize || col < 0 || col >= this.gridSize) return false;
         const cell = this.grid[row][col];
 
-        if (cell.crop.id === 'empty') { /*this.addEvent('Nothing to harvest.', true);*/ this.logger.log(`Attempted harvest on empty plot (${row}, ${col})`, 3); return false; } // Reduce log noise
-        if (!cell.harvestReady) { /*this.addEvent('Crop not ready for harvest.', true);*/ this.logger.log(`Attempted harvest on not-ready plot (${row}, ${col})`, 3); return false; } // Reduce log noise
+        if (cell.crop.id === 'empty') { this.logger.log(`Attempted harvest on empty plot (${row}, ${col})`, 3); return false; }
+        if (!cell.harvestReady) { this.logger.log(`Attempted harvest on not-ready plot (${row}, ${col}), Crop: ${cell.crop.id}, Progress: ${cell.growthProgress}%`, 3); return false; }
 
         const marketPriceFactor = this.marketPrices[cell.crop.id] || 1.0;
-        const result = cell.harvest(this.waterReserve, marketPriceFactor); // Harvest returns { value, cropName, yieldPercentage }
+        const result = cell.harvest(this.waterReserve, marketPriceFactor);
 
         if (result.value === undefined || result.yieldPercentage === undefined) {
              this.logger.log(`ERROR: Harvest calculation failed for plot (${row}, ${col})`, 0);
-             return false;
+             return false; // Indicate failure
+        }
+        // Check if harvesting actually yielded anything
+        if (result.value <= 0 && result.yieldPercentage <= 0) {
+             this.logger.log(`Harvested ${result.cropName} at (${row}, ${col}) yielded $0 (Yield: 0%). Plot reset.`, 2); // Log low-value harvests differently?
+        } else {
+             this.balance += result.value;
+             const msg = `Harvested ${result.cropName} at (${row}, ${col}) for $${result.value.toLocaleString()}. Yield: ${result.yieldPercentage}%`;
+             this.addEvent(msg); this.logger.log(msg, 1);
         }
 
-
-        this.balance += result.value;
-
-        const msg = `Harvested ${result.cropName} at (${row}, ${col}) for $${result.value.toLocaleString()}. Yield: ${result.yieldPercentage}%`;
-        this.addEvent(msg); this.logger.log(msg, 1); // Log harvest as level 1
 
         if (this.ui) {
             this.ui.updateHUD();
             this.ui.showCellInfo(row, col);
-            // this.ui.render();
         }
-        return true;
+        return true; // Indicate success even if yield was 0
     }
 
     researchTechnology(techId) {
@@ -705,7 +717,7 @@ export class CaliforniaClimateFarmer {
         if (!tech) { this.logger.log(`Technology ID not found: ${techId}`, 0); return false; }
         if (tech.researched) { this.logger.log(`${tech.name} already researched.`, 1); return false; }
 
-        if (!checkTechPrerequisites(tech, this.researchedTechs)) { // Use imported function
+        if (!checkTechPrerequisites(tech, this.researchedTechs)) {
             const msg = `Prerequisites not met for ${tech.name}.`;
             this.addEvent(msg, true); this.logger.log(msg, 1);
             return false;
@@ -722,11 +734,11 @@ export class CaliforniaClimateFarmer {
         this.researchedTechs.push(tech.id);
 
         const msg = `Researched ${tech.name} for $${tech.cost.toLocaleString()}`;
-        this.addEvent(msg); this.logger.log(msg, 1); // Log research as level 1
+        this.addEvent(msg); this.logger.log(msg, 1);
 
         if (this.ui) {
             this.ui.updateHUD();
-            this.ui.showResearchModal(); // Update modal if open
+            if (this.ui.isResearchModalOpen) this.ui.showResearchModal(); // Update modal if open
         }
         return true;
     }
@@ -749,14 +761,13 @@ export class CaliforniaClimateFarmer {
                 const change = 0.9 + Math.random() * 0.2; // +/- 10% fluctuation
                 const oldPrice = this.marketPrices[crop.id];
                 this.marketPrices[crop.id] = Math.max(0.5, Math.min(2.0, oldPrice * change)); // Keep between 50% and 200%
-                 // Only log significant changes? For now log all
-                 //if (Math.abs(this.marketPrices[crop.id] - oldPrice) > 0.01) {
+                 if (Math.abs(this.marketPrices[crop.id] - oldPrice) > 0.01) {
                     changes.push(`${crop.id}: ${Math.round(oldPrice*100)}%->${Math.round(this.marketPrices[crop.id]*100)}%`);
-                 //}
+                 }
             }
         });
          if(changes.length > 0) this.logger.log(`Market prices fluctuated: ${changes.join(', ')}`, 2);
-        if(this.ui && this.ui.isMarketModalOpen) this.ui.showMarketModal(); // Update if open
+        if(this.ui && this.ui.isMarketModalOpen) this.ui.showMarketModal();
     }
 
     togglePause() { // UI Only method
@@ -766,9 +777,8 @@ export class CaliforniaClimateFarmer {
         if (this.ui) {
             document.getElementById('pause-btn').textContent = this.paused ? 'Resume' : 'Pause';
         }
-        // If resuming, restart the animation loop if it was stopped
         if (!this.paused && !this.animationFrameId) {
-            this.lastUpdateTime = performance.now(); // Reset timer
+            this.lastUpdateTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
             this.gameLoop();
         }
     }
@@ -780,7 +790,6 @@ export class CaliforniaClimateFarmer {
 
     // Get combined effect value from researched technologies
     getTechEffectValue(effectName, defaultValue = 1.0) {
-        // Use the imported helper function directly
         return getTechEffectValue(effectName, this.researchedTechs, defaultValue);
     }
 
@@ -806,22 +815,14 @@ export class CaliforniaClimateFarmer {
         this.logger.log(`Researched Techs: ${this.researchedTechs.join(', ') || 'None'}`, 1);
         this.logger.log(`========================================`, 1);
 
+        this.stop(); // Stop UI loop if running
 
-        // Stop simulation if in UI mode (though unlikely for auto-terminate tests)
-        this.stop();
-
-        // Call the callback provided by the test harness to start the next test
         if (this.nextTestCallback) {
-            // Use setTimeout to avoid potential call stack issues if callback immediately starts new test
             setTimeout(() => {
                  if (this.nextTestCallback) {
-                     try {
-                        this.nextTestCallback();
-                     } catch (error) {
-                         console.error("Error executing nextTestCallback:", error);
-                     }
+                     try { this.nextTestCallback(); } catch (error) { console.error("Error executing nextTestCallback:", error); }
                  }
-            }, 100); // Short delay
+            }, 100);
         }
     }
 }
