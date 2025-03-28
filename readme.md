@@ -12,6 +12,7 @@ California Climate Farmer is a browser-based simulation game designed to educate
 - **UI:** The browser-based UI (`index.html`, `ui.js`) remains functional for interactive play but is now decoupled from the core simulation loop used in testing.
 
 ## File Structure
+```
 /california-climate-farmer
 |-- index.html # Main HTML for the browser game
 |-- style.css # Main CSS for styling
@@ -30,7 +31,7 @@ California Climate Farmer is a browser-based simulation game designed to educate
 | |-- strategies.js # Implementations of automated farming strategies
 |-- TDD.md # Technical Design Document
 |-- README.md # Project overview and guide (this file)
-
+```
 
 ## Key Components
 
