@@ -147,19 +147,21 @@ The current headless, modular structure is well-suited for future Machine Learni
 
 
 /california-climate-farmer
-|-- index.html
-|-- style.css        # CSS is in the main directory
+|-- index.html # Main HTML for the browser game
+|-- style.css # Main CSS for styling
+|-- run-tests.js # Node.js script to execute headless tests
 |-- scripts/
-|   |-- main.js            # Entry point
-|   |-- game.js            # Core game logic
-|   |-- cell.js            # Cell class and methods
-|   |-- crops.js           # Crop definitions
-|   |-- events.js          # Event generation and handling
-|   |-- technology.js      # Technology tree handling
-|   |-- economy.js         # NEW: Loan and economic systems
-|   |-- ui.js              # UI-related functions
-|   |-- utils.js           # Helper functions
-|   |-- test/              # Test-related code
-|       |-- test-harness.js    # Test framework
-|       |-- strategies.js      # Test strategies implementation
+| |-- main.js # Entry point for BROWSER game: Initializes UI game instance
+| |-- game.js # Core game logic: CaliforniaClimateFarmer class, simulation engine
+| |-- cell.js # Cell class: Manages individual farm plot properties
+| |-- crops.js # Crop definitions and data
+| |-- events.js # Event system: Generation and application of game events
+| |-- technology.js # Technology tree: Definitions and management
+| |-- ui.js # UI Manager: Handles browser UI rendering and interactions
+| |-- utils.js # Utility functions: Formatting, calculations, Logger class
+| |-- test/ # Headless testing framework
+| |-- test-harness.js # TestHarness class: Manages execution of test strategies
+| |-- strategies.js # Implementations of automated farming strategies
+|-- TDD.md # Technical Design Document (this file)
+|-- README.md # Project overview and guide 
 ```
