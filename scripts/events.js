@@ -525,106 +525,115 @@ export function applyRainEvent(event, grid, waterReserve, techs = []) {
 }
 
 // Apply drought event
-export function applyDroughtEvent(event, grid, waterReserve, techs = []) {
-    // Check if we should skip this event (for consecutive drought days)
+export function applyHeatwaveEvent(event, grid, waterReserve, techs = []) {
     if (event.duration <= 0) {
-        return {
-            skipped: true
-        };
+        return { skipped: true };
     }
-    
+
     let newWaterReserve = waterReserve;
-    
-    // Decrease water reserve
-    const severityFactor = event.severity === 'mild' ? 1 : (event.severity === 'moderate' ? 2 : 3);
-    const dailyWaterLoss = 3 * severityFactor;
-    
-    // Apply drought resistance technology
-    let droughtProtection = 1.0;
-    if (techs && techs.includes('drought_resistant')) {
-        droughtProtection = 0.7; // 30% reduction in water loss
+    const dailyWaterLoss = 2; // Base farm-wide evaporation increase
+
+    let heatProtection = 1.0;
+    if (techs && techs.includes('greenhouse')) {
+        heatProtection = 0.6; // 40% reduction in effects
     }
-    
-    newWaterReserve = Math.max(0, newWaterReserve - (dailyWaterLoss * droughtProtection));
-    
-    // Apply to each cell on the grid
+     if (techs && techs.includes('silvopasture')) {
+         // Silvopasture also offers some heat protection (shade)
+         heatProtection *= 0.85; // Additional 15% reduction stacks multiplicatively
+     }
+
+
+    newWaterReserve = Math.max(0, newWaterReserve - (dailyWaterLoss * heatProtection));
+
     for (let row = 0; row < grid.length; row++) {
         for (let col = 0; col < grid[row].length; col++) {
-            // Only apply drought to cells with crops
-            if (grid[row][col].crop.id !== 'empty') {
-                // Water decrease effect
-                grid[row][col].applyEnvironmentalEffect('water-decrease', dailyWaterLoss * 0.75, droughtProtection);
-                
-                // Yield damage effect for severe drought
-                if (event.severity === 'severe') {
-                    grid[row][col].applyEnvironmentalEffect('yield-damage', 3, droughtProtection);
-                }
+            const cell = grid[row][col];
+            if (cell.crop.id !== 'empty') {
+                // Water decrease effect on cell
+                cell.applyEnvironmentalEffect('water-decrease', dailyWaterLoss * 1.5, heatProtection); // Slightly higher effect on cell water
+
+                // *** ADDED: Yield damage effect based on heat sensitivity ***
+                const crop = cell.crop;
+                const heatSensitivityFactor = crop.heatSensitivity || 1.0; // Default sensitivity if not specified
+                // Magnitude of damage could scale with sensitivity and maybe growth stage?
+                // Simple approach: fixed damage scaled by sensitivity & protection
+                const heatDamageMagnitude = 2.0; // Base yield % points lost per day of heatwave
+                cell.applyEnvironmentalEffect('yield-damage', heatDamageMagnitude * heatSensitivityFactor, heatProtection);
             }
         }
     }
-    
-    // Check if drought continues
+
     const continueEvent = event.duration > 1;
     const nextDuration = event.duration - 1;
-    
+
+    // Message should reflect potential yield damage
+    let message = event.message || "Heatwave affecting your farm.";
+    if (event.duration === nextDuration + 1) { // First day
+         message = "Heatwave conditions! Crops experiencing heat stress, water use increased, potential yield loss.";
+    }
+
+
     return {
         waterReserve: newWaterReserve,
-        message: event.message || "Drought conditions affecting your farm.", // Default message to prevent undefined
+        message: message,
         skipped: false,
         continueEvent,
-        nextDuration,
-        severity: event.severity
+        nextDuration
     };
 }
 
 // Apply heatwave event
 export function applyHeatwaveEvent(event, grid, waterReserve, techs = []) {
-    // Check if we should skip this event (for consecutive heatwave days)
     if (event.duration <= 0) {
-        return {
-            skipped: true
-        };
+        return { skipped: true };
     }
-    
+
     let newWaterReserve = waterReserve;
-    
-    // Decrease water reserve
-    const dailyWaterLoss = 2;
-    
-    // Apply greenhouse technology
+    const dailyWaterLoss = 2; // Base farm-wide evaporation increase
+
     let heatProtection = 1.0;
     if (techs && techs.includes('greenhouse')) {
-        heatProtection = 0.6; // 40% reduction in heat effects
+        heatProtection = 0.6; // 40% reduction in effects
     }
-    
+     if (techs && techs.includes('silvopasture')) {
+         // Silvopasture also offers some heat protection (shade)
+         heatProtection *= 0.85; // Additional 15% reduction stacks multiplicatively
+     }
+
+
     newWaterReserve = Math.max(0, newWaterReserve - (dailyWaterLoss * heatProtection));
-    
-    // Apply to each cell on the grid
+
     for (let row = 0; row < grid.length; row++) {
         for (let col = 0; col < grid[row].length; col++) {
-            // Only apply heatwave to cells with crops
-            if (grid[row][col].crop.id !== 'empty') {
-                // Water decrease effect
-                grid[row][col].applyEnvironmentalEffect('water-decrease', dailyWaterLoss, heatProtection);
-                
-                // Additional effects based on crop heat sensitivity if defined
-                const crop = grid[row][col].crop;
-                if (crop.heatSensitivity) {
-                    // Higher sensitivity means more damage
-                    const heatDamage = 2 * (crop.heatSensitivity || 1.0);
-                    grid[row][col].applyEnvironmentalEffect('yield-damage', heatDamage, heatProtection);
-                }
+            const cell = grid[row][col];
+            if (cell.crop.id !== 'empty') {
+                // Water decrease effect on cell
+                cell.applyEnvironmentalEffect('water-decrease', dailyWaterLoss * 1.5, heatProtection); // Slightly higher effect on cell water
+
+                // *** ADDED: Yield damage effect based on heat sensitivity ***
+                const crop = cell.crop;
+                const heatSensitivityFactor = crop.heatSensitivity || 1.0; // Default sensitivity if not specified
+                // Magnitude of damage could scale with sensitivity and maybe growth stage?
+                // Simple approach: fixed damage scaled by sensitivity & protection
+                const heatDamageMagnitude = 2.0; // Base yield % points lost per day of heatwave
+                cell.applyEnvironmentalEffect('yield-damage', heatDamageMagnitude * heatSensitivityFactor, heatProtection);
             }
         }
     }
-    
-    // Check if heatwave continues
+
     const continueEvent = event.duration > 1;
     const nextDuration = event.duration - 1;
-    
+
+    // Message should reflect potential yield damage
+    let message = event.message || "Heatwave affecting your farm.";
+    if (event.duration === nextDuration + 1) { // First day
+         message = "Heatwave conditions! Crops experiencing heat stress, water use increased, potential yield loss.";
+    }
+
+
     return {
         waterReserve: newWaterReserve,
-        message: event.message || "Heatwave affecting your farm.", // Default message to prevent undefined
+        message: message,
         skipped: false,
         continueEvent,
         nextDuration
