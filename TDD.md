@@ -144,8 +144,8 @@ The current headless, modular structure is well-suited for future Machine Learni
 - **Testing:** Automated headless tests via Node.js. Future unit/integration tests.
 - **Documentation:** This TDD, README.md, inline code comments.
 - **Performance:** Headless tests should run quickly (currently <100ms per 50-year run is good). Browser version needs to maintain responsive UI.
-```
-'''
+
+
 /california-climate-farmer
 |-- index.html
 |-- style.css        # CSS is in the main directory
