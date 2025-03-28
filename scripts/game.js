@@ -15,13 +15,15 @@ import * as Events from './events.js';
 // --- Constants (Replacing Spreadsheet Named Ranges used directly) ---
 // Suggestion A: Reduced passive income
 const ANNUAL_INTEREST_RATE = 0.015; // Reduced to 1.5%
-const SUSTAINABILITY_THRESHOLD_LOW = 40; // Min score for any subsidy
-const SUSTAINABILITY_THRESHOLD_MED = 60; // Threshold for medium subsidy
-const SUSTAINABILITY_THRESHOLD_HIGH = 75; // Threshold for high subsidy
-const SUSTAINABILITY_SUBSIDY_BASE = 100; // Base amount per % point above threshold? Or fixed amounts? Let's try scaling.
-const SUSTAINABILITY_SUBSIDY_FACTOR = 150; // e.g., 150 * (score - threshold)
+const SUSTAINABILITY_THRESHOLD_LOW = 40;
+const SUSTAINABILITY_THRESHOLD_MED = 60;
+const SUSTAINABILITY_THRESHOLD_HIGH = 75;
+const SUSTAINABILITY_SUBSIDY_BASE = 100;
+const SUSTAINABILITY_SUBSIDY_FACTOR = 150;
 
-const PLANTING_COST_FACTOR = 0.4; // Factor of base crop price
+const INITIAL_BALANCE = 200000; // Increased from 100000
+
+const PLANTING_COST_FACTOR = 0.4;
 const IRRIGATION_COST = 200;
 const FERTILIZE_COST = 300;
 // --- End Constants ---
@@ -726,25 +728,25 @@ export class CaliforniaClimateFarmer {
 
         if (result.value === undefined || result.yieldPercentage === undefined) {
              this.logger.log(`ERROR: Harvest calculation failed for plot (${row}, ${col})`, 0);
-             return false;
+             return false; // Indicate failure
         }
 
         if (result.value <= 0 && result.yieldPercentage <= 0) {
-            // Log zero-yield harvests at DEBUG level
+             // Log zero-yield harvests at DEBUG level
              this.logger.log(`Harvested ${result.cropName} at (${row}, ${col}) yielded $0 (Yield: 0%). Plot reset.`, 2); // DBG
         } else {
              this.balance += result.value;
              const msg = `Harvested ${result.cropName} at (${row}, ${col}) for $${result.value.toLocaleString()}. Yield: ${result.yieldPercentage}%`;
              this.addEvent(msg);
-             // Keep successful harvests at INFO level
-             this.logger.log(msg, 1); // INF
+             // *** CHANGE SUCCESSFUL HARVEST LOG LEVEL HERE ***
+             this.logger.log(msg, 2); // Changed to DBG
         }
 
         if (this.ui) {
             this.ui.updateHUD();
             this.ui.showCellInfo(row, col);
         }
-        return true;
+        return true; // Indicate success even if yield was 0
     }
 
     researchTechnology(techId) {
