@@ -1,31 +1,28 @@
 /**
  * California Climate Farmer - Events System
- * 
- * This file contains the event generation and handling logic for random events
- * that can occur during gameplay, such as weather events, market fluctuations,
- * and policy changes.
+ *
+ * Contains event generation and handling logic for random events like weather,
+ * market fluctuations, policy changes, and technology events.
  */
 
-// Generate a random event based on the current state of the farm
+import { crops } from './crops.js'; // Assuming crops.js is in the parent directory
+
+// --- Event Generation ---
+
 export function generateRandomEvent(farmState) {
-    // Prevent duplicate event generation by adding a small random factor to probability
-    if (Math.random() < 0.5) {
-        return null; // 50% chance to not generate an event at all
-    }
-    
-    // Determine what type of event to generate
+    if (Math.random() < 0.5) return null; // 50% chance no event
+
     const eventTypes = [
         { type: 'weather', probability: 0.4 },
         { type: 'market', probability: 0.3 },
         { type: 'policy', probability: 0.15 },
         { type: 'technology', probability: 0.15 }
     ];
-    
-    // Select event type based on probabilities
+
     const roll = Math.random();
     let cumulativeProbability = 0;
     let selectedType = eventTypes[0].type;
-    
+
     for (const type of eventTypes) {
         cumulativeProbability += type.probability;
         if (roll < cumulativeProbability) {
@@ -33,81 +30,73 @@ export function generateRandomEvent(farmState) {
             break;
         }
     }
-    
-    // Generate specific event based on type
+
+    // Check if negative financial events should be suppressed early (optional grace period)
+    const isEarlyGame = farmState.year === 1 && farmState.day < 180; // Example: first 2 seasons
+
     switch (selectedType) {
         case 'weather':
             return scheduleWeatherEvent(farmState.day, farmState.climate, farmState.season);
         case 'market':
             return scheduleMarketEvent(farmState.day);
         case 'policy':
-            return schedulePolicyEvent(farmState.day, farmState.farmHealth);
+            // Optionally suppress costly policy events early on
+            return schedulePolicyEvent(farmState.day, farmState.farmHealth, null, isEarlyGame);
         case 'technology':
-            return generateTechnologyEvent(farmState.day, farmState);
+             // Optionally suppress tech setbacks early on
+            return generateTechnologyEvent(farmState.day, farmState, isEarlyGame);
         default:
             return scheduleWeatherEvent(farmState.day, farmState.climate, farmState.season);
     }
 }
 
-// Schedule a weather event based on current climate data
 function scheduleWeatherEvent(day, climate, season) {
-    // Determine the type of weather event
     const eventTypes = [
         { id: 'rain', probability: 0.5 },
         { id: 'drought', probability: climate.droughtProbability },
         { id: 'heatwave', probability: climate.heatwaveProbability },
         { id: 'frost', probability: season === 'Winter' ? 0.3 : 0.05 }
     ];
-    
-    // Normalize probabilities
+
     const totalProbability = eventTypes.reduce((sum, type) => sum + type.probability, 0);
-    eventTypes.forEach(type => type.probability /= totalProbability);
-    
-    // Select event type based on normalized probabilities
+    if (totalProbability <= 0) return scheduleRain(day + 5); // Fallback if probabilities are zero
+
+    // Normalize probabilities before selection
+    const normalizedTypes = eventTypes.map(type => ({ ...type, probability: type.probability / totalProbability }));
+
     const roll = Math.random();
     let cumulativeProbability = 0;
-    let selectedType = eventTypes[0].id;
-    
-    for (const type of eventTypes) {
+    let selectedType = normalizedTypes[0].id;
+
+    for (const type of normalizedTypes) {
         cumulativeProbability += type.probability;
         if (roll < cumulativeProbability) {
             selectedType = type.id;
             break;
         }
     }
-    
-    // Schedule the event for a future day
-    const eventDay = day + Math.floor(Math.random() * 20) + 5; // 5-25 days from now
-    
-    // Create the event based on type
+
+    const eventDay = day + Math.floor(Math.random() * 20) + 5; // 5-25 days ahead
+
     switch (selectedType) {
-        case 'rain':
-            return scheduleRain(eventDay);
-        case 'drought':
-            return scheduleDrought(eventDay, climate.droughtProbability);
-        case 'heatwave':
-            return scheduleHeatwave(eventDay);
-        case 'frost':
-            return scheduleFrost(eventDay);
-        default:
-            return scheduleRain(eventDay);
+        case 'rain': return scheduleRain(eventDay);
+        case 'drought': return scheduleDrought(eventDay, climate.droughtProbability);
+        case 'heatwave': return scheduleHeatwave(eventDay);
+        case 'frost': return scheduleFrost(eventDay);
+        default: return scheduleRain(eventDay);
     }
 }
 
-// Schedule a market event
 function scheduleMarketEvent(day) {
-    // Determine the type of market event
     const eventTypes = [
         { id: 'price_increase', probability: 0.4 },
         { id: 'price_decrease', probability: 0.4 },
         { id: 'market_opportunity', probability: 0.2 }
     ];
-    
-    // Select event type based on probabilities
     const roll = Math.random();
     let cumulativeProbability = 0;
     let selectedType = eventTypes[0].id;
-    
+
     for (const type of eventTypes) {
         cumulativeProbability += type.probability;
         if (roll < cumulativeProbability) {
@@ -115,64 +104,59 @@ function scheduleMarketEvent(day) {
             break;
         }
     }
-    
-    const eventDay = day + Math.floor(Math.random() * 15) + 5; // 5-20 days from now
-    
-    // Create the event based on type
+    const eventDay = day + Math.floor(Math.random() * 15) + 5;
+
     switch (selectedType) {
-        case 'price_increase':
-            return createMarketEvent(eventDay, 'increase');
-        case 'price_decrease':
-            return createMarketEvent(eventDay, 'decrease');
-        case 'market_opportunity':
-            return createMarketOpportunityEvent(eventDay);
-        default:
-            return createMarketEvent(eventDay, 'increase');
+        case 'price_increase': return createMarketEvent(eventDay, 'increase');
+        case 'price_decrease': return createMarketEvent(eventDay, 'decrease');
+        case 'market_opportunity': return createMarketOpportunityEvent(eventDay);
+        default: return createMarketEvent(eventDay, 'increase');
     }
 }
 
-// Schedule a policy event
-export function schedulePolicyEvent(day, farmHealth) {
-    // Determine the type of policy event
+export function schedulePolicyEvent(day, farmHealth, policyType = null, suppressCostly = false) {
     const eventTypes = [
         { id: 'water_restriction', probability: 0.4 },
         { id: 'environmental_subsidy', probability: 0.3 },
         { id: 'new_regulations', probability: 0.3 }
     ];
-    
-    // Select event type based on probabilities
-    const roll = Math.random();
-    let cumulativeProbability = 0;
-    let selectedType = eventTypes[0].id;
-    
-    for (const type of eventTypes) {
-        cumulativeProbability += type.probability;
-        if (roll < cumulativeProbability) {
-            selectedType = type.id;
-            break;
+
+    if (!policyType) {
+        const roll = Math.random();
+        let cumulativeProbability = 0;
+        policyType = eventTypes[0].id;
+        for (const type of eventTypes) {
+            cumulativeProbability += type.probability;
+            if (roll < cumulativeProbability) {
+                policyType = type.id;
+                break;
+            }
         }
     }
-    
-    const eventDay = day + Math.floor(Math.random() * 20) + 10; // 10-30 days from now
-    
-    // Create the event based on type
-    return generatePolicyEvent(eventDay, farmHealth, selectedType);
+
+    // If suppressing costly events early, potentially switch to subsidy
+    if (suppressCostly && (policyType === 'new_regulations' || policyType === 'water_restriction')) {
+         if (Math.random() < 0.5) { // 50% chance to switch a negative early event
+             console.log("Switching early costly policy event to subsidy."); // Use console log, not logger here
+             policyType = 'environmental_subsidy';
+         }
+    }
+
+
+    const eventDay = day + Math.floor(Math.random() * 20) + 10;
+    return generatePolicyEvent(eventDay, farmHealth, policyType); // Call the generator
 }
 
-// Generate technology event
-export function generateTechnologyEvent(day, farmState) {
-    // Determine the type of technology event
+export function generateTechnologyEvent(day, farmState, suppressCostly = false) {
     const eventTypes = [
         { id: 'innovation_grant', probability: 0.5 },
         { id: 'research_breakthrough', probability: 0.3 },
         { id: 'technology_setback', probability: 0.2 }
     ];
-    
-    // Select event type based on probabilities
     const roll = Math.random();
     let cumulativeProbability = 0;
     let selectedType = eventTypes[0].id;
-    
+
     for (const type of eventTypes) {
         cumulativeProbability += type.probability;
         if (roll < cumulativeProbability) {
@@ -180,368 +164,223 @@ export function generateTechnologyEvent(day, farmState) {
             break;
         }
     }
-    
-    const eventDay = day + Math.floor(Math.random() * 30) + 5; // 5-35 days from now
-    
-    // Create the event based on type
+
+    // If suppressing costly events early, potentially switch setback to grant
+    if (suppressCostly && selectedType === 'technology_setback') {
+         if (Math.random() < 0.5) {
+             console.log("Switching early tech setback to grant.");
+             selectedType = 'innovation_grant';
+         }
+    }
+
+
+    const eventDay = day + Math.floor(Math.random() * 30) + 5;
+
     switch (selectedType) {
-        case 'innovation_grant':
-            return createInnovationGrantEvent(eventDay, farmState);
-        case 'research_breakthrough':
-            return createResearchBreakthroughEvent(eventDay);
-        case 'technology_setback':
-            return createTechnologySetbackEvent(eventDay);
-        default:
-            return createInnovationGrantEvent(eventDay, farmState);
+        case 'innovation_grant': return createInnovationGrantEvent(eventDay, farmState);
+        case 'research_breakthrough': return createResearchBreakthroughEvent(eventDay);
+        case 'technology_setback': return createTechnologySetbackEvent(eventDay);
+        default: return createInnovationGrantEvent(eventDay, farmState);
     }
 }
 
-// Create innovation grant event that scales with technology adoption
+// --- Event Creation Helpers ---
+
 function createInnovationGrantEvent(day, farmState) {
-    // Only award meaningful grants if the farm has researched some technologies
     const techCount = farmState?.researchedTechs?.length || 0;
-    
-    // Base amount for grants
     let grantAmount = 0;
     let message = '';
-    
     if (techCount === 0) {
-        // No technologies researched - very small grant or no grant at all
-        if (Math.random() < 0.2) {
-            // 20% chance of a tiny starter grant to encourage research
-            grantAmount = 2000;
-            message = `You received a small $${grantAmount} starter grant for farm innovation. Consider investing in research.`;
-        } else {
-            // 80% chance of being denied a grant
-            grantAmount = 0;
-            message = 'Your farm was not selected for an innovation grant due to lack of technological adoption.';
-        }
-    } else if (techCount === 1) {
-        // One technology - modest grant
-        grantAmount = 5000;
-        message = `You received a $${grantAmount} innovation grant for your initial research efforts.`;
-    } else if (techCount <= 3) {
-        // 2-3 technologies - medium grant
-        grantAmount = 10000;
-        message = `You received a $${grantAmount} innovation grant for farm research!`;
-    } else if (techCount <= 5) {
-        // 4-5 technologies - large grant
-        grantAmount = 15000;
-        message = `You received a $${grantAmount} substantial innovation grant for your technological leadership!`;
-    } else {
-        // 6+ technologies - very large grant
-        grantAmount = 20000 + (techCount - 6) * 2000; // Additional 2k per tech beyond 6
-        message = `You received a major $${grantAmount} innovation grant for being at the cutting edge of agricultural technology!`;
-    }
-    
-    return {
-        type: 'technology',
-        subType: 'innovation_grant',
-        day,
-        amount: grantAmount,
-        message
-    };
+        if (Math.random() < 0.2) { grantAmount = 2000; message = `You received a small $${grantAmount} starter grant for farm innovation. Consider investing in research.`; }
+        else { message = 'Your farm was not selected for an innovation grant due to lack of technological adoption.'; }
+    } else if (techCount <= 1) { grantAmount = 5000; message = `You received a $${grantAmount} innovation grant for your initial research efforts.`; }
+    else if (techCount <= 3) { grantAmount = 10000; message = `You received a $${grantAmount} innovation grant for farm research!`; }
+    else if (techCount <= 5) { grantAmount = 15000; message = `You received a $${grantAmount} substantial innovation grant for your technological leadership!`; }
+    else { grantAmount = 20000 + (techCount - 6) * 2000; message = `You received a major $${grantAmount} innovation grant for being at the cutting edge of agricultural technology!`; }
+
+    return { type: 'technology', subType: 'innovation_grant', day, amount: grantAmount, message, isAlert: grantAmount > 0 };
 }
 
-// Create research breakthrough event
 function createResearchBreakthroughEvent(day) {
-    // Random duration for the breakthrough effect (15-30 days)
     const duration = Math.floor(Math.random() * 16) + 15;
-    
     return {
-        type: 'technology',
-        subType: 'research_breakthrough',
-        day,
-        duration,
-        discount: 0.3, // 30% discount on technology research
-        message: `Research breakthrough! Technology costs reduced by 30% for the next month.`
+        type: 'technology', subType: 'research_breakthrough', day, duration,
+        discount: 0.3, message: `Research breakthrough! Technology costs reduced by 30% for the next ${duration} days.`, isAlert: true
     };
 }
 
-// Create technology setback event
 function createTechnologySetbackEvent(day) {
-    // Random setback amount
     const setbackAmount = Math.floor(Math.random() * 3000) + 2000;
-    
     return {
-        type: 'technology',
-        subType: 'technology_setback',
-        day,
-        amount: setbackAmount,
-        message: `Technology setback! Equipment malfunction has cost you $${setbackAmount} in repairs.`
+        type: 'technology', subType: 'technology_setback', day, amount: setbackAmount,
+        message: `Technology setback! Equipment malfunction has cost you $${setbackAmount} in repairs.`, isAlert: true
     };
 }
 
-// Schedule rain event
 export function scheduleRain(day) {
-    // Determine intensity of rain
     const intensity = Math.random();
     let severity, message, waterIncrease;
-    
-    if (intensity < 0.3) {
-        severity = 'light';
-        message = 'Light rainfall has slightly increased water levels.';
-        waterIncrease = 5 + Math.floor(Math.random() * 5); // 5-10%
-    } else if (intensity < 0.7) {
-        severity = 'moderate';
-        message = 'Moderate rainfall has increased water levels across your farm.';
-        waterIncrease = 10 + Math.floor(Math.random() * 10); // 10-20%
-    } else {
-        severity = 'heavy';
-        message = 'Heavy rainfall has increased water levels but may have caused soil erosion.';
-        waterIncrease = 15 + Math.floor(Math.random() * 15); // 15-30%
-    }
-    
+    if (intensity < 0.3) { severity = 'light'; message = 'Light rainfall increased water levels slightly.'; waterIncrease = 5 + Math.floor(Math.random() * 5); }
+    else if (intensity < 0.7) { severity = 'moderate'; message = 'Moderate rainfall increased water levels.'; waterIncrease = 10 + Math.floor(Math.random() * 10); }
+    else { severity = 'heavy'; message = 'Heavy rainfall significantly increased water levels but may cause erosion.'; waterIncrease = 15 + Math.floor(Math.random() * 15); }
     const forecastMessage = 'Weather forecast: ' + severity + ' rain expected soon.';
-    
-    // Schedule the rain event
-    return {
-        type: 'rain',
-        day,
-        severity,
-        waterIncrease,
-        message,
-        forecastMessage,
-        isAlert: false
-    };
+    return { type: 'rain', day, severity, waterIncrease, message, forecastMessage, isAlert: severity === 'heavy' };
 }
 
-// Schedule drought event
 export function scheduleDrought(day, baseProbability) {
-    // Calculate severity and duration
     const severityRoll = Math.random();
-    let severity, duration, message;
-    
-    if (severityRoll < 0.6) {
-        severity = 'mild';
-        duration = Math.floor(Math.random() * 3) + 3; // 3-5 days
-        message = 'Drought conditions affecting your farm. Water levels are dropping slowly.';
-    } else if (severityRoll < 0.9) {
-        severity = 'moderate';
-        duration = Math.floor(Math.random() * 4) + 5; // 5-8 days
-        message = 'Moderate drought conditions! Water levels are dropping and crops are stressed.';
-    } else {
-        severity = 'severe';
-        duration = Math.floor(Math.random() * 5) + 7; // 7-11 days
-        message = 'Severe drought conditions! Water levels are critically low and crops are at high risk.';
-    }
-    
-    // Increase duration based on base probability (climate change effect)
-    const climateModifier = baseProbability / 0.05; // 1.0 at default, increases with climate change
-    duration = Math.floor(duration * climateModifier);
-    
-    // Schedule the drought event
-    return {
-        type: 'drought',
-        day,
-        severity,
-        duration,
-        message,
-        forecastMessage: 'Weather forecast: Dry conditions expected. Potential drought warning.',
-        isAlert: true
-    };
+    let severity, duration, baseMessage;
+    if (severityRoll < 0.6) { severity = 'mild'; duration = Math.floor(Math.random() * 3) + 3; baseMessage = 'Drought conditions affecting your farm.'; }
+    else if (severityRoll < 0.9) { severity = 'moderate'; duration = Math.floor(Math.random() * 4) + 5; baseMessage = 'Moderate drought conditions! Water levels dropping, crops stressed.'; }
+    else { severity = 'severe'; duration = Math.floor(Math.random() * 5) + 7; baseMessage = 'Severe drought conditions! Water critically low, crops at high risk.'; }
+    const climateModifier = Math.max(1.0, baseProbability / 0.05); // Increases duration with climate change
+    duration = Math.max(1, Math.floor(duration * climateModifier)); // Ensure duration is at least 1
+    const forecastMessage = 'Weather forecast: Dry conditions expected. Potential drought warning.';
+    return { type: 'drought', day, severity, duration, message: baseMessage, forecastMessage, isAlert: severity !== 'mild' };
 }
 
-// Schedule heatwave event
 export function scheduleHeatwave(day) {
-    // Determine duration of heatwave
     const duration = Math.floor(Math.random() * 4) + 2; // 2-5 days
-    
-    // Schedule the heatwave event
-    return {
-        type: 'heatwave',
-        day,
-        duration,
-        message: 'Heatwave conditions! Crops are experiencing heat stress and growth is slowed.',
-        forecastMessage: 'Weather forecast: Extreme heat expected in the coming days.',
-        isAlert: true
-    };
+    const forecastMessage = 'Weather forecast: Extreme heat expected in the coming days.';
+    return { type: 'heatwave', day, duration, message: 'Heatwave conditions! Crops experiencing heat stress.', forecastMessage, isAlert: true };
 }
 
-// Schedule frost event
 export function scheduleFrost(day) {
-    // Schedule the frost event
-    return {
-        type: 'frost',
-        day,
-        message: 'Frost has affected your crops! Young plants are particularly vulnerable.',
-        forecastMessage: 'Weather forecast: Temperatures expected to drop below freezing overnight.',
-        isAlert: true
-    };
+    const forecastMessage = 'Weather forecast: Temperatures expected to drop below freezing overnight.';
+    return { type: 'frost', day, message: 'Frost warning! Young plants are vulnerable.', forecastMessage, isAlert: true };
 }
 
-// Create market event
 function createMarketEvent(day, direction) {
-    // Random crop and amount
-    const cropIndex = Math.floor(Math.random() * 5) + 1; // Skip 'empty' at index 0
-    const cropId = ['empty', 'corn', 'lettuce', 'almonds', 'strawberries', 'grapes'][cropIndex];
-    const cropName = ['Empty Plot', 'Corn', 'Lettuce', 'Almonds', 'Strawberries', 'Grapes'][cropIndex];
-    
-    // Determine magnitude of price change
-    let changePercent;
+    const validCrops = crops.filter(c => c.id !== 'empty');
+    if (validCrops.length === 0) return null; // No crops to affect
+    const cropIndex = Math.floor(Math.random() * validCrops.length);
+    const targetCrop = validCrops[cropIndex];
+
+    let changePercent, message, forecast, isAlert;
     if (direction === 'increase') {
-        changePercent = 10 + Math.floor(Math.random() * 30); // 10-40%
-        
-        return {
-            type: 'market',
-            day,
-            direction,
-            cropId,
-            changePercent,
-            message: `Market update: ${cropName} prices have risen by ${changePercent}%.`,
-            forecastMessage: `Market news: Export Opportunity expected to affect crop prices.`,
-            isAlert: false
-        };
-    } else {
-        changePercent = 10 + Math.floor(Math.random() * 30); // 10-40%
-        
-        return {
-            type: 'market',
-            day,
-            direction,
-            cropId,
-            changePercent,
-            message: `Market update: ${cropName} prices have fallen by ${changePercent}%.`,
-            forecastMessage: `Market news: Market Crash expected to affect crop prices.`,
-            isAlert: true
-        };
+        changePercent = 10 + Math.floor(Math.random() * 30);
+        message = `Market update: ${targetCrop.name} prices have risen by ${changePercent}%.`;
+        forecast = `Market news: Increased demand expected for ${targetCrop.name}.`;
+        isAlert = false;
+    } else { // decrease
+        changePercent = 10 + Math.floor(Math.random() * 30);
+        message = `Market update: ${targetCrop.name} prices have fallen by ${changePercent}%.`;
+        forecast = `Market news: Market surplus expected for ${targetCrop.name}.`;
+        isAlert = true;
     }
+    return { type: 'market', day, direction, cropId: targetCrop.id, changePercent, message, forecastMessage: forecast, isAlert };
 }
 
-// Create market opportunity event
 function createMarketOpportunityEvent(day) {
-    // Random crop and bonus
-    const cropIndex = Math.floor(Math.random() * 5) + 1; // Skip 'empty' at index 0
-    const cropId = ['empty', 'corn', 'lettuce', 'almonds', 'strawberries', 'grapes'][cropIndex];
-    const cropName = ['Empty Plot', 'Corn', 'Lettuce', 'Almonds', 'Strawberries', 'Grapes'][cropIndex];
-    const bonusPercent = 30 + Math.floor(Math.random() * 30); // 30-60%
-    
-    return {
-        type: 'market',
-        day,
-        direction: 'opportunity',
-        cropId,
-        changePercent: bonusPercent,
-        message: `Market opportunity! ${cropName} prices have temporarily increased by ${bonusPercent}%. Consider harvesting soon!`,
-        forecastMessage: `Market news: Special demand expected for certain crops.`,
-        isAlert: false,
-        duration: Math.floor(Math.random() * 10) + 5 // 5-15 days
-    };
+    const validCrops = crops.filter(c => c.id !== 'empty');
+    if (validCrops.length === 0) return null;
+    const cropIndex = Math.floor(Math.random() * validCrops.length);
+    const targetCrop = validCrops[cropIndex];
+    const bonusPercent = 30 + Math.floor(Math.random() * 30); // 30-60% bonus
+    const duration = Math.floor(Math.random() * 10) + 5; // 5-15 days
+    const message = `Market opportunity! ${targetCrop.name} prices temporarily increased by ${bonusPercent}% for ${duration} days!`;
+    const forecast = `Market news: Special demand expected for ${targetCrop.name}.`;
+    return { type: 'market', day, direction: 'opportunity', cropId: targetCrop.id, changePercent: bonusPercent, duration, message, forecastMessage: forecast, isAlert: true }; // Alert worthy
 }
 
-// Generate policy event
-export function generatePolicyEvent(day, farmHealth, policyType = null) {
-    // If no policy type provided, choose randomly
-    if (!policyType) {
-        const policies = ['water_restriction', 'environmental_subsidy', 'new_regulations'];
-        policyType = policies[Math.floor(Math.random() * policies.length)];
-    }
-    
-    // Create specific policy event
+export function generatePolicyEvent(day, farmHealth, policyType) {
+    const subsidyAmount = farmHealth > 60 ? 5000 : (farmHealth > 40 ? 3000 : 0); // Adjusted subsidy logic slightly
+    const complianceCost = 3000;
+
     switch (policyType) {
         case 'water_restriction':
-            return {
-                type: 'policy',
-                day,
-                policyType,
-                message: 'Water restriction policy enacted. Irrigation costs have increased by 50%.',
-                forecastMessage: 'Policy update: New Water Restriction policy being considered by local government.',
-                isAlert: true,
-                irrigationCostIncrease: 0.5, // 50% increase
-                balanceChange: 0
-            };
-            
+            return { type: 'policy', day, policyType, message: 'Water restriction policy enacted. Irrigation costs increased by 50%.', forecastMessage: 'Policy update: Water restrictions being considered.', isAlert: true, irrigationCostIncrease: 0.5, balanceChange: 0 };
         case 'environmental_subsidy':
-            // Subsidy depends on farm health
-            const subsidyAmount = farmHealth > 60 ? 5000 : 3000;
-            return {
-                type: 'policy',
-                day,
-                policyType,
-                message: `You received a $${subsidyAmount} environmental subsidy!`,
-                forecastMessage: 'Policy update: New Environmental Subsidy policy being considered by local government.',
-                isAlert: false,
-                balanceChange: subsidyAmount
-            };
-            
+             if (subsidyAmount > 0) {
+                 return { type: 'policy', day, policyType, message: `You received a $${subsidyAmount} environmental subsidy!`, forecastMessage: 'Policy update: Environmental subsidies being discussed.', isAlert: false, balanceChange: subsidyAmount };
+             } else {
+                  // Don't generate a subsidy event if they don't qualify
+                  return null; // Or maybe generate a different event? For now, just skip.
+             }
         case 'new_regulations':
-            // Compliance cost
-            const complianceCost = 3000;
-            return {
-                type: 'policy',
-                day,
-                policyType,
-                message: `New regulations have cost you $${complianceCost} in compliance expenses.`,
-                forecastMessage: 'Policy update: New New Regulations policy being considered by local government.',
-                isAlert: true,
-                balanceChange: -complianceCost
-            };
-            
-        default:
-            return {
-                type: 'policy',
-                day,
-                policyType: 'water_restriction',
-                message: 'Water restriction policy enacted. Irrigation costs have increased by 50%.',
-                forecastMessage: 'Policy update: New policy being considered by local government.',
-                isAlert: true,
-                irrigationCostIncrease: 0.5,
-                balanceChange: 0
-            };
+            return { type: 'policy', day, policyType, message: `New regulations require compliance upgrades costing $${complianceCost}.`, forecastMessage: 'Policy update: New farming regulations proposed.', isAlert: true, balanceChange: -complianceCost };
+        default: // Fallback if type is invalid
+            return null;
     }
 }
 
-// Apply rain event
+
+// --- Event Application Functions ---
+
 export function applyRainEvent(event, grid, waterReserve, techs = []) {
-    let newWaterReserve = waterReserve;
-    
-    // Increase water reserve
-    newWaterReserve = Math.min(100, newWaterReserve + event.waterIncrease);
-    
-    // Apply to each cell on the grid
+    let newWaterReserve = Math.min(100, waterReserve + event.waterIncrease);
+    let soilDamage = 0;
+    if (event.severity === 'heavy') {
+        soilDamage = 1 + Math.random() * 2; // Base damage
+    }
+
     for (let row = 0; row < grid.length; row++) {
         for (let col = 0; col < grid[row].length; col++) {
-            // Only apply water to cells with crops
-            if (grid[row][col].crop.id !== 'empty') {
-                grid[row][col].applyEnvironmentalEffect('water-increase', event.waterIncrease * 0.6);
-                
-                // Heavy rain can damage soil
-                if (event.severity === 'heavy') {
-                    // Calculate soil damage based on protection
-                    let protection = 1.0;
-                    if (techs && techs.includes('no_till_farming')) {
-                        protection = 0.5; // 50% reduction with no-till
-                    }
-                    grid[row][col].applyEnvironmentalEffect('soil-damage', 1 + Math.random() * 2, protection);
+            const cell = grid[row][col];
+            // Apply water increase to cells (maybe slightly less than reserve increase?)
+            cell.applyEnvironmentalEffect('water-increase', event.waterIncrease * 0.8);
+            // Apply soil damage if heavy rain
+            if (soilDamage > 0) {
+                let protection = 1.0;
+                if (techs.includes('no_till_farming')) protection *= 0.5;
+                if (techs.includes('cover_crop')) protection *= 0.7; // Cover crops also help
+                cell.applyEnvironmentalEffect('soil-damage', soilDamage, protection);
+            }
+        }
+    }
+    return { waterReserve: newWaterReserve, message: event.message };
+}
+
+export function applyDroughtEvent(event, grid, waterReserve, techs = []) {
+    if (event.duration <= 0) return { skipped: true };
+
+    let newWaterReserve = waterReserve;
+    const severityFactor = event.severity === 'mild' ? 1 : (event.severity === 'moderate' ? 2 : 3);
+    const dailyFarmReserveLoss = 0.5 * severityFactor; // Base loss from reserve
+    const dailyCellWaterLoss = 2 * severityFactor; // Higher loss within cell
+
+    let droughtProtection = 1.0;
+    if (techs.includes('drought_resistant')) droughtProtection *= 0.7;
+    if (techs.includes('silvopasture')) droughtProtection *= 0.8;
+    if (techs.includes('ai_irrigation')) droughtProtection *= 0.95;
+
+    newWaterReserve = Math.max(0, newWaterReserve - (dailyFarmReserveLoss * droughtProtection));
+
+    for (let row = 0; row < grid.length; row++) {
+        for (let col = 0; col < grid[row].length; col++) {
+            const cell = grid[row][col];
+            if (cell.crop.id !== 'empty') {
+                cell.applyEnvironmentalEffect('water-decrease', dailyCellWaterLoss, droughtProtection);
+                if (severityFactor > 1) { // Moderate or Severe
+                    const yieldDamageMagnitude = 1.5 * (severityFactor - 1);
+                    cell.applyEnvironmentalEffect('yield-damage', yieldDamageMagnitude, droughtProtection);
                 }
+            } else {
+                 cell.applyEnvironmentalEffect('water-decrease', dailyFarmReserveLoss * 0.5, 1.0);
             }
         }
     }
-    
-    return {
-        waterReserve: newWaterReserve,
-        message: event.message
-    };
-}
-
-// Apply drought event
-export function applyHeatwaveEvent(event, grid, waterReserve, techs = []) {
-    if (event.duration <= 0) {
-        return { skipped: true };
-    }
-
-    let newWaterReserve = waterReserve;
-    const dailyWaterLoss = 2; // Base farm-wide evaporation increase
-
-    let heatProtection = 1.0;
-    if (techs && techs.includes('greenhouse')) {
-        heatProtection = 0.6; // 40% reduction in effects
-    }
-     if (techs && techs.includes('silvopasture')) {
-         // Silvopasture also offers some heat protection (shade)
-         heatProtection *= 0.85; // Additional 15% reduction stacks multiplicatively
+    const continueEvent = event.duration > 1;
+    const nextDuration = event.duration - 1;
+    let message = event.message; // Use continuing message by default
+     if (!message || event.duration === nextDuration + 1) { // First day message
+         if (event.severity === 'mild') message = 'Mild drought conditions. Water reserves decreasing slowly.';
+         else if (event.severity === 'moderate') message = 'Moderate drought! Crop stress increasing, yield potentially impacted.';
+         else message = 'Severe drought! Critical water levels, significant yield loss likely.';
      }
 
+    return { waterReserve: newWaterReserve, message, skipped: false, continueEvent, nextDuration, severity: event.severity };
+}
+
+export function applyHeatwaveEvent(event, grid, waterReserve, techs = []) {
+    if (event.duration <= 0) return { skipped: true };
+
+    let newWaterReserve = waterReserve;
+    const dailyWaterLoss = 2;
+
+    let heatProtection = 1.0;
+    if (techs.includes('greenhouse')) heatProtection = 0.6;
+    if (techs.includes('silvopasture')) heatProtection *= 0.85;
 
     newWaterReserve = Math.max(0, newWaterReserve - (dailyWaterLoss * heatProtection));
 
@@ -549,187 +388,94 @@ export function applyHeatwaveEvent(event, grid, waterReserve, techs = []) {
         for (let col = 0; col < grid[row].length; col++) {
             const cell = grid[row][col];
             if (cell.crop.id !== 'empty') {
-                // Water decrease effect on cell
-                cell.applyEnvironmentalEffect('water-decrease', dailyWaterLoss * 1.5, heatProtection); // Slightly higher effect on cell water
-
-                // *** ADDED: Yield damage effect based on heat sensitivity ***
+                cell.applyEnvironmentalEffect('water-decrease', dailyWaterLoss * 1.5, heatProtection);
                 const crop = cell.crop;
-                const heatSensitivityFactor = crop.heatSensitivity || 1.0; // Default sensitivity if not specified
-                // Magnitude of damage could scale with sensitivity and maybe growth stage?
-                // Simple approach: fixed damage scaled by sensitivity & protection
-                const heatDamageMagnitude = 2.0; // Base yield % points lost per day of heatwave
+                const heatSensitivityFactor = crop.heatSensitivity || 1.0;
+                const heatDamageMagnitude = 2.0;
                 cell.applyEnvironmentalEffect('yield-damage', heatDamageMagnitude * heatSensitivityFactor, heatProtection);
             }
         }
     }
-
     const continueEvent = event.duration > 1;
     const nextDuration = event.duration - 1;
-
-    // Message should reflect potential yield damage
-    let message = event.message || "Heatwave affecting your farm.";
-    if (event.duration === nextDuration + 1) { // First day
-         message = "Heatwave conditions! Crops experiencing heat stress, water use increased, potential yield loss.";
-    }
-
-
-    return {
-        waterReserve: newWaterReserve,
-        message: message,
-        skipped: false,
-        continueEvent,
-        nextDuration
-    };
-}
-
-// Apply heatwave event
-export function applyHeatwaveEvent(event, grid, waterReserve, techs = []) {
-    if (event.duration <= 0) {
-        return { skipped: true };
-    }
-
-    let newWaterReserve = waterReserve;
-    const dailyWaterLoss = 2; // Base farm-wide evaporation increase
-
-    let heatProtection = 1.0;
-    if (techs && techs.includes('greenhouse')) {
-        heatProtection = 0.6; // 40% reduction in effects
-    }
-     if (techs && techs.includes('silvopasture')) {
-         // Silvopasture also offers some heat protection (shade)
-         heatProtection *= 0.85; // Additional 15% reduction stacks multiplicatively
+    let message = event.message;
+     if (!message || event.duration === nextDuration + 1) { // First day message
+        message = "Heatwave conditions! Crops experiencing heat stress, water use increased, potential yield loss.";
      }
 
-
-    newWaterReserve = Math.max(0, newWaterReserve - (dailyWaterLoss * heatProtection));
-
-    for (let row = 0; row < grid.length; row++) {
-        for (let col = 0; col < grid[row].length; col++) {
-            const cell = grid[row][col];
-            if (cell.crop.id !== 'empty') {
-                // Water decrease effect on cell
-                cell.applyEnvironmentalEffect('water-decrease', dailyWaterLoss * 1.5, heatProtection); // Slightly higher effect on cell water
-
-                // *** ADDED: Yield damage effect based on heat sensitivity ***
-                const crop = cell.crop;
-                const heatSensitivityFactor = crop.heatSensitivity || 1.0; // Default sensitivity if not specified
-                // Magnitude of damage could scale with sensitivity and maybe growth stage?
-                // Simple approach: fixed damage scaled by sensitivity & protection
-                const heatDamageMagnitude = 2.0; // Base yield % points lost per day of heatwave
-                cell.applyEnvironmentalEffect('yield-damage', heatDamageMagnitude * heatSensitivityFactor, heatProtection);
-            }
-        }
-    }
-
-    const continueEvent = event.duration > 1;
-    const nextDuration = event.duration - 1;
-
-    // Message should reflect potential yield damage
-    let message = event.message || "Heatwave affecting your farm.";
-    if (event.duration === nextDuration + 1) { // First day
-         message = "Heatwave conditions! Crops experiencing heat stress, water use increased, potential yield loss.";
-    }
-
-
-    return {
-        waterReserve: newWaterReserve,
-        message: message,
-        skipped: false,
-        continueEvent,
-        nextDuration
-    };
+    return { waterReserve: newWaterReserve, message, skipped: false, continueEvent, nextDuration };
 }
 
-// Apply frost event
 export function applyFrostEvent(event, grid, techs = []) {
-    // Apply greenhouse technology
     let frostProtection = 1.0;
-    if (techs && techs.includes('greenhouse')) {
-        frostProtection = 0.4; // 60% reduction in frost effects
-    }
-    
-    // Apply to each cell on the grid
+    if (techs.includes('greenhouse')) frostProtection = 0.4; // Strong protection
+
     for (let row = 0; row < grid.length; row++) {
         for (let col = 0; col < grid[row].length; col++) {
-            // Only apply frost to cells with crops
-            if (grid[row][col].crop.id !== 'empty') {
-                // Yield damage effect
-                // Young plants (low growth progress) are more vulnerable
-                const growthProtectionFactor = Math.min(1, grid[row][col].growthProgress / 50);
-                const frostDamage = 5 * (1 - growthProtectionFactor);
-                
-                grid[row][col].applyEnvironmentalEffect('yield-damage', frostDamage, frostProtection);
+            const cell = grid[row][col];
+            if (cell.crop.id !== 'empty') {
+                // More damage to younger plants (lower progress)
+                const growthProtectionFactor = Math.min(1, cell.growthProgress / 50); // Full protection if > 50% grown
+                const frostDamageBase = 5.0; // Base yield % points lost
+                const effectiveDamage = frostDamageBase * (1 - growthProtectionFactor);
+                cell.applyEnvironmentalEffect('yield-damage', effectiveDamage, frostProtection);
             }
         }
     }
-    
-    return {
-        message: event.message || "Frost has affected your crops!"  // Default message to prevent undefined
-    };
+    // Refined message
+    const message = event.message || "Frost reported! Crops, especially young ones, may have suffered yield damage.";
+    return { message };
 }
 
-// Apply market event
-export function applyMarketEvent(event, marketPrices, crops) {
-    const newMarketPrices = {...marketPrices};
-    
+export function applyMarketEvent(event, marketPrices, allCropsData) { // Pass allCropsData if needed
+    const newMarketPrices = { ...marketPrices };
+    const cropId = event.cropId;
+    const currentPriceFactor = newMarketPrices[cropId] || 1.0; // Current factor relative to base
+    let message = event.message || "Market conditions changed.";
+
     if (event.direction === 'increase') {
-        newMarketPrices[event.cropId] = newMarketPrices[event.cropId] * (1 + (event.changePercent / 100));
-        
-        // Cap the price increase
-        newMarketPrices[event.cropId] = Math.min(2.5, newMarketPrices[event.cropId]);
-    } 
-    else if (event.direction === 'decrease') {
-        newMarketPrices[event.cropId] = newMarketPrices[event.cropId] * (1 - (event.changePercent / 100));
-        
-        // Floor the price decrease
-        newMarketPrices[event.cropId] = Math.max(0.4, newMarketPrices[event.cropId]);
-    } 
-    else if (event.direction === 'opportunity') {
-        newMarketPrices[event.cropId] = newMarketPrices[event.cropId] * (1 + (event.changePercent / 100));
-        
-        // Cap the price increase
-        newMarketPrices[event.cropId] = Math.min(3.0, newMarketPrices[event.cropId]);
+        newMarketPrices[cropId] = Math.min(2.5, currentPriceFactor * (1 + (event.changePercent / 100)));
+    } else if (event.direction === 'decrease') {
+        newMarketPrices[cropId] = Math.max(0.4, currentPriceFactor * (1 - (event.changePercent / 100)));
+    } else if (event.direction === 'opportunity') {
+        // Store original price and apply bonus temporarily? Or just boost it?
+        // Let's just boost it for simplicity now. Need a mechanism to revert later.
+        newMarketPrices[cropId] = Math.min(3.0, currentPriceFactor * (1 + (event.changePercent / 100)));
+        // TODO: Need mechanism to end the market opportunity after event.duration
     }
-    
-    return {
-        marketPrices: newMarketPrices,
-        message: event.message || "Market conditions have changed." // Default message to prevent undefined
-    };
+
+     // Add price change details to message if not already present
+     if (!message.includes('%')) {
+         const newPricePercent = Math.round(newMarketPrices[cropId] * 100);
+         message += ` ${cropId} price factor now ${newPricePercent}%.`;
+     }
+
+
+    return { marketPrices: newMarketPrices, message };
 }
 
-// Apply policy event
 export function applyPolicyEvent(event, balance) {
     const newBalance = balance + (event.balanceChange || 0);
-    
-    return {
-        newBalance,
-        message: event.message || "New policy enacted.",  // Default message to prevent undefined
-        balanceChange: event.balanceChange || 0
-    };
+    // TODO: Implement irrigationCostIncrease effect from 'water_restriction'
+    // This might require modifying where irrigation cost is accessed/calculated in game.js or strategies.js
+    return { newBalance, message: event.message, balanceChange: event.balanceChange || 0 };
 }
 
-// Apply technology event
 export function applyTechnologyEvent(event, balance, researchedTechs = []) {
     let newBalance = balance;
-    let message = event.message || "Technology event occurred.";  // Default message to prevent undefined
-    
+    let message = event.message || "Technology event occurred.";
     switch (event.subType) {
         case 'innovation_grant':
-            // Add grant to balance
             newBalance += event.amount;
             break;
         case 'research_breakthrough':
-            // This is handled in the game's research cost calculation
-            // No immediate balance change
+             // Effect handled elsewhere (checking for active breakthrough when calculating research cost)
+             // Need a way to track active temporary effects like this.
+             // TODO: Add mechanism to track start/end day of research_breakthrough effect.
             break;
         case 'technology_setback':
-            // Deduct setback cost from balance
             newBalance -= event.amount;
             break;
     }
-    
-    return {
-        newBalance,
-        message
-    };
+    return { newBalance, message };
 }
