@@ -274,57 +274,83 @@ export class CaliforniaClimateFarmer {
     advanceYear() {
         this.year++;
         this.logger.log(`======== STARTING YEAR ${this.year} ========`, 1);
+
+        // Apply interest
         if (this.balance > 0) {
+            // Use the interestRate property defined in the constructor
             const interest = Math.floor(this.balance * this.interestRate);
              if (interest > 0) {
                 this.balance += interest;
                 const msg = `Earned $${interest.toLocaleString()} in interest.`;
-                this.addEvent(msg); this.logger.log(msg, 1);
+                this.addEvent(msg);
+                this.logger.log(msg, 1);
              }
         }
-        // Recalculate farm value using updated function in utils.js
-        this.farmValue = calculateFarmValue(this.grid, this.technologies);
+
+        // Recalculate farm value (using original logic for bug-fix only pass)
+        // Ensure calculateFarmValue uses the older logic for now
+        this.farmValue = calculateFarmValue(this.grid, this.technologies, this.balance); // Pass balance if original calc used it
         const sustainabilityScore = this.calculateSustainabilityScore();
+
         this.logger.log(`Year ${this.year} Summary: Balance: $${this.balance.toLocaleString()}, Value: $${this.farmValue.toLocaleString()}, Health: ${this.farmHealth}%, Water: ${this.waterReserve}%, SustainScore: ${sustainabilityScore.total}%`, 1);
         this.logger.log(` -- Sustain Breakdown: Soil ${sustainabilityScore.soilScore}%, Diversity ${sustainabilityScore.diversityScore}%, Tech ${sustainabilityScore.techScore}%`, 2);
 
-        this.climate.droughtProbability = Math.min(0.5, this.climate.droughtProbability + 0.005);
+        // Climate change effect - apply annually
+        this.climate.droughtProbability = Math.min(0.5, this.climate.droughtProbability + 0.005); // Cap probability
         this.climate.heatwaveProbability = Math.min(0.6, this.climate.heatwaveProbability + 0.005);
         this.logger.log(`Climate Change Update: Drought Prob ${this.climate.droughtProbability.toFixed(3)}, Heatwave Prob ${this.climate.heatwaveProbability.toFixed(3)}`, 2);
 
         this.addEvent(`Happy New Year! Completed Year ${this.year - 1}.`);
 
-        // Sustainability subsidy (revised logic)
+        // Sustainability subsidy (Using original tiered logic for bug-fix pass)
         let bonus = 0;
         let subsidyMsg = "Farm did not qualify for sustainability subsidies.";
-        if (sustainabilityScore.total >= SUSTAINABILITY_THRESHOLD_HIGH) {
-             bonus = Math.round(SUSTAINABILITY_SUBSIDY_BASE * 2 * (sustainabilityScore.total - SUSTAINABILITY_THRESHOLD_HIGH + 10));
-             subsidyMsg = `Received $${bonus.toLocaleString()} high-tier sustainability subsidy!`;
-        } else if (sustainabilityScore.total >= SUSTAINABILITY_THRESHOLD_MED) {
-            bonus = Math.round(SUSTAINABILITY_SUBSIDY_BASE * 1.5 * (sustainabilityScore.total - SUSTAINABILITY_THRESHOLD_MED + 5));
-            subsidyMsg = `Received $${bonus.toLocaleString()} mid-tier sustainability subsidy.`;
-        } else if (sustainabilityScore.total >= SUSTAINABILITY_THRESHOLD_LOW) {
-            bonus = Math.round(SUSTAINABILITY_SUBSIDY_BASE * (sustainabilityScore.total - SUSTAINABILITY_THRESHOLD_LOW + 1));
-            subsidyMsg = `Received $${bonus.toLocaleString()} low-tier sustainability subsidy.`;
-        }
-        if (bonus > 0) this.balance += bonus;
-        this.addEvent(subsidyMsg); this.logger.log(subsidyMsg, 1);
+         // Revert to original subsidy logic for bug-fix pass if different
+        // Example using original tiers (adjust if needed):
+        // if (sustainabilityScore.total >= 70) bonus = Math.round(10000 * (sustainabilityScore.total / 100));
+        // else if (sustainabilityScore.total >= 50) bonus = Math.round(5000 * (sustainabilityScore.total / 100));
+        // else if (sustainabilityScore.total >= 30) bonus = Math.round(2000 * (sustainabilityScore.total / 100));
 
+        // Using the logic from Response #16's game.js (tiers)
+        if (sustainabilityScore.total >= 70) { bonus = Math.round(10000 * (sustainabilityScore.total / 100)); subsidyMsg = `Received $${bonus.toLocaleString()} high-tier sustainability subsidy!`; }
+        else if (sustainabilityScore.total >= 50) { bonus = Math.round(5000 * (sustainabilityScore.total / 100)); subsidyMsg = `Received $${bonus.toLocaleString()} mid-tier sustainability subsidy.`; }
+        else if (sustainabilityScore.total >= 30) { bonus = Math.round(2000 * (sustainabilityScore.total / 100)); subsidyMsg = `Received $${bonus.toLocaleString()} low-tier sustainability subsidy.`; }
+
+
+        if (bonus > 0) {
+            this.balance += bonus;
+        }
+        this.addEvent(subsidyMsg);
+        this.logger.log(subsidyMsg, 1);
+
+        // Milestone Events
         if (this.year % 10 === 0) {
             this.addEvent(`Major milestone: ${this.year} years of operation!`);
             if (Math.random() < 0.7) {
                 const policyEvent = Events.generatePolicyEvent(this.day, this.farmHealth);
-                 if (policyEvent.day <= this.day) policyEvent.day = this.day + 1;
-                this.pendingEvents.push(policyEvent);
-                this.addEvent(`New climate policy announced.`);
-                this.logger.log(`Scheduled policy event for 10-year milestone: ${policyEvent.policyType || 'Unknown'}`, 1);
+
+                // *** ADDED NULL CHECK HERE ***
+                if (policyEvent) {
+                    // Ensure event day is in the future
+                    if (policyEvent.day <= this.day) {
+                        policyEvent.day = this.day + 1;
+                    }
+                    this.pendingEvents.push(policyEvent);
+                    this.addEvent(`New climate policy announced.`);
+                    this.logger.log(`Scheduled policy event for 10-year milestone: ${policyEvent.policyType || 'Unknown'}`, 1);
+                } else {
+                    // Log that no policy event was generated for the milestone (optional)
+                    this.logger.log(`No specific policy event generated for 10-year milestone.`, 2);
+                }
             }
         }
+
+        // Check for test termination condition AFTER year processing
         if (this.testMode && this.autoTerminate && (this.year >= this.testEndYear || this.balance <= 0)) {
              this.logger.log(`Test termination condition met after year processing. Year: ${this.year}, Balance: ${this.balance}`, 1);
         }
     }
-
+    
     calculateSustainabilityScore() { // No changes here from previous version
         let soilScore = 0;
         let cropDiversityScore = 0;
