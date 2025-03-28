@@ -607,17 +607,21 @@ export class CaliforniaClimateFarmer {
              this.logger.log(`Invalid crop ID for planting: ${cropId}`, 0); return false;
         }
 
+        // *** FIX: Use the plantingCostFactor property from 'this' ***
         const plantingCost = Math.round(newCrop.basePrice * this.plantingCostFactor);
 
         if (this.balance < plantingCost) {
             const msg = `Cannot afford to plant ${newCrop.name}. Cost: $${plantingCost.toLocaleString()}, Balance: $${this.balance.toLocaleString()}`;
-            this.addEvent(msg, true); this.logger.log(msg, 1);
+            this.addEvent(msg, true);
+            // *** CHANGE LOG LEVEL HERE ***
+            this.logger.log(msg, 2); // Changed from 1 to 2 (DBG)
             return false;
         }
         if (cell.crop.id !== 'empty') {
             const msg = `Cannot plant ${newCrop.name}, plot (${row}, ${col}) is already occupied by ${cell.crop.name}.`;
+            // Only log error if attempted manually, strategies might try planting occupied cells
             if (!this.testMode) this.addEvent(msg, true);
-            this.logger.log(msg, this.testMode ? 2 : 1);
+            this.logger.log(msg, this.testMode ? 2 : 1); // Log less severely in test mode
             return false;
         }
 
@@ -629,7 +633,8 @@ export class CaliforniaClimateFarmer {
 
         if (this.ui) {
             this.ui.updateHUD();
-            this.ui.showCellInfo(row, col);
+            this.ui.showCellInfo(row, col); // Update if panel is open
+            // this.ui.render(); // Render handled by gameLoop
         }
         return true;
     }
@@ -637,14 +642,20 @@ export class CaliforniaClimateFarmer {
     irrigateCell(row, col) {
          if (row < 0 || row >= this.gridSize || col < 0 || col >= this.gridSize) return false;
         const cell = this.grid[row][col];
+        // *** FIX: Use the irrigationCost property from 'this' ***
         const cost = this.irrigationCost;
 
         if (cell.crop.id === 'empty') { this.addEvent('Cannot irrigate empty plot.', true); this.logger.log(`Attempted to irrigate empty plot (${row}, ${col})`, 2); return false; }
-        if (cell.irrigated) { this.logger.log(`Plot (${row}, ${col}) already irrigated today.`, 3); return false; }
-        if (this.balance < cost) { this.addEvent(`Cannot afford irrigation ($${cost}).`, true); this.logger.log(`Cannot afford irrigation ($${cost}). Balance: $${this.balance}`, 1); return false; }
+        if (cell.irrigated) { /*this.addEvent('Plot already irrigated today.', true);*/ this.logger.log(`Plot (${row}, ${col}) already irrigated today.`, 3); return false; } // Reduce log noise
+        if (this.balance < cost) {
+            this.addEvent(`Cannot afford irrigation ($${cost}).`, true);
+            // *** CHANGE LOG LEVEL HERE ***
+            this.logger.log(`Cannot afford irrigation ($${cost}). Balance: $${this.balance}`, 2); // Changed from 1 to 2 (DBG)
+            return false;
+        }
 
         this.balance -= cost;
-        const waterEfficiency = this.getTechEffectValue('waterEfficiency', 1.0);
+        const waterEfficiency = this.getTechEffectValue('waterEfficiency', 1.0); // Default 1.0
         cell.irrigate(waterEfficiency);
 
         const msg = `Irrigated plot at (${row}, ${col}). Cost: $${cost.toLocaleString()}`;
@@ -653,6 +664,7 @@ export class CaliforniaClimateFarmer {
         if (this.ui) {
             this.ui.updateHUD();
             this.ui.showCellInfo(row, col);
+            // this.ui.render();
         }
         return true;
     }
@@ -660,11 +672,17 @@ export class CaliforniaClimateFarmer {
     fertilizeCell(row, col) {
          if (row < 0 || row >= this.gridSize || col < 0 || col >= this.gridSize) return false;
         const cell = this.grid[row][col];
+        // *** FIX: Use the fertilizeCost property from 'this' ***
         const cost = this.fertilizeCost;
 
         if (cell.crop.id === 'empty') { this.addEvent('Cannot fertilize empty plot.', true); this.logger.log(`Attempted to fertilize empty plot (${row}, ${col})`, 2); return false; }
-        if (cell.fertilized) { this.logger.log(`Plot (${row}, ${col}) already fertilized for this cycle.`, 3); return false; }
-        if (this.balance < cost) { this.addEvent(`Cannot afford fertilizer ($${cost}).`, true); this.logger.log(`Cannot afford fertilizer ($${cost}). Balance: $${this.balance}`, 1); return false; }
+        if (cell.fertilized) { /*this.addEvent('Plot already fertilized.', true);*/ this.logger.log(`Plot (${row}, ${col}) already fertilized for this cycle.`, 3); return false; } // Reduce log noise
+        if (this.balance < cost) {
+            this.addEvent(`Cannot afford fertilizer ($${cost}).`, true);
+             // *** CHANGE LOG LEVEL HERE ***
+            this.logger.log(`Cannot afford fertilizer ($${cost}). Balance: $${this.balance}`, 2); // Changed from 1 to 2 (DBG)
+            return false;
+        }
 
 
         this.balance -= cost;
@@ -677,6 +695,7 @@ export class CaliforniaClimateFarmer {
         if (this.ui) {
             this.ui.updateHUD();
             this.ui.showCellInfo(row, col);
+            // this.ui.render();
         }
         return true;
     }
@@ -717,7 +736,7 @@ export class CaliforniaClimateFarmer {
         if (!tech) { this.logger.log(`Technology ID not found: ${techId}`, 0); return false; }
         if (tech.researched) { this.logger.log(`${tech.name} already researched.`, 1); return false; }
 
-        if (!checkTechPrerequisites(tech, this.researchedTechs)) {
+        if (!checkTechPrerequisites(tech, this.researchedTechs)) { // Use imported function
             const msg = `Prerequisites not met for ${tech.name}.`;
             this.addEvent(msg, true); this.logger.log(msg, 1);
             return false;
@@ -725,7 +744,9 @@ export class CaliforniaClimateFarmer {
 
         if (this.balance < tech.cost) {
             const msg = `Cannot afford ${tech.name} ($${tech.cost.toLocaleString()}). Balance: $${this.balance.toLocaleString()}`;
-            this.addEvent(msg, true); this.logger.log(msg, 1);
+            this.addEvent(msg, true);
+             // *** CHANGE LOG LEVEL HERE ***
+            this.logger.log(msg, 2); // Changed from 1 to 2 (DBG)
             return false;
         }
 
@@ -734,7 +755,7 @@ export class CaliforniaClimateFarmer {
         this.researchedTechs.push(tech.id);
 
         const msg = `Researched ${tech.name} for $${tech.cost.toLocaleString()}`;
-        this.addEvent(msg); this.logger.log(msg, 1);
+        this.addEvent(msg); this.logger.log(msg, 1); // Log successful research at INFO
 
         if (this.ui) {
             this.ui.updateHUD();
@@ -742,7 +763,7 @@ export class CaliforniaClimateFarmer {
         }
         return true;
     }
-
+    
     // --- Helper Methods ---
 
     updateMarketPrices() {
