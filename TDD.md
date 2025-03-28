@@ -1,287 +1,149 @@
 ```markdown
-# California Climate Farmer - Technical Design Document (Combined & Updated)
+# California Climate Farmer - Technical Design Document (Updated)
 
-## Project Overview
+## 1. Project Overview
 
-California Climate Farmer is a browser-based simulation game inspired by the "Civilization" series, designed to entertain and educate players about sustainable farming practices under evolving climate conditions. Players manage a procedurally generated California family farm, making strategic decisions regarding diverse crops, water, soil, and economics. The game simulates daily ticks (with variable pace), randomly generated events (droughts, floods, wildfires, tariffs), and tech trees to unlock adaptive strategies. The goal is to highlight that adaptive, smart management is key for survival and success under climate change. The UI features a grid-based farm view with color-coded metrics, a HUD displaying vital farm statistics, and granular zone-level control.
+California Climate Farmer is a browser-based simulation game focused on educating players about the challenges and adaptation strategies for farming in California under climate change. Players manage a farm, making decisions about crops, water use, soil health, technology adoption, and finances. The game simulates environmental conditions (including increasing drought and heatwave risks) and economic factors over time.
 
-## Core Gameplay Loop
+**Core Objective:** To create an engaging simulation demonstrating the economic and environmental trade-offs of different farming practices and technologies in the face of climate volatility, grounded in realistic data and simplified scientific models.
 
-- Players manage daily farm operations: planting, irrigation, fertilization, harvesting, and soil management.
-- Weather and climate events dynamically impact farm conditions, presenting challenges and opportunities.
-- Players make strategic decisions about adopting adaptation technologies, sustainable farming practices, and economic management.
-- Economic outcomes, reflected in bank balance, debt, and farm value, provide immediate feedback on management decisions.
-- Long-term success depends on balancing profitability with environmental sustainability and resilience to climate change.
+**Key Features:**
+- Grid-based farm management.
+- Simulation of crop growth, soil health, water resources, and basic farm economics.
+- Dynamic event system (weather, market, policy, tech).
+- Technology tree for adaptation strategies.
+- Headless automated testing framework for balancing and analysis.
+- Decoupled browser-based UI for interactive gameplay.
 
-## Current Development Status
+## 2. Current Development Status (As of Post-Refactor & Initial Balancing)
 
-The game has a functional base with these systems implemented:
-- Grid-based farm representation
-- Basic weather and climate event system
-- Technology research tree
-- Crop growth simulation (needs revision)
-- Market price fluctuations
-- UI and farm visualization
+- **Engine:** Core simulation loop (`runTick`) is functional and decoupled from UI. Runs daily steps updating basic crop growth, soil health (incl. empty plot degradation), water reserves, and simple economics.
+- **Testing:** Headless testing framework (`run-tests.js`, `TestHarness`, `strategies.js`) is operational via Node.js. Runs multiple automated strategies until bankruptcy or time limit.
+- **Balancing:**
+    - **Passive Income Reduced:** Interest rate significantly lowered; sustainability subsidies adjusted. `no-action` strategy is now roughly break-even, not highly profitable.
+    - **Early Economics Adjusted:** Starting balance increased, planting cost factor reduced, basic daily overhead added, some crop harvest values/growth times tweaked.
+    - **Result:** Active farming strategies still face **severe economic challenges** and typically fail within the first few years due to costs outpacing income. Further balancing is the highest priority.
+- **Mechanics:**
+    - Basic heat stress yield penalty implemented.
+    - Basic drought impact on farm water reserve implemented.
+    *   Empty plot soil degradation implemented.
+- **Logging:** Refined to reduce console spam, allowing clearer analysis of test results via INFO-level messages (yearly summaries, major events) while retaining detailed logs at DEBUG/VERBOSE levels.
+- **UI:** Browser UI remains functional but needs usability improvements (see Section 8).
+- **Planned Features:** Major systems described in the original TDD (detailed economics w/ loans, labor costs, soil organic matter/nutrients, crop rotation benefits, advanced water rights) are **NOT YET IMPLEMENTED**.
 
-However, key systems require significant revisions and enhancements to achieve the intended gameplay depth and educational value.
+## 3. Core Gameplay Loop (Current Implementation)
 
-## Key System Revisions & Functional Requirements
+1.  Game state updates daily (`runTick`).
+2.  Daily overhead cost is deducted.
+3.  Cell states (crop growth, soil, water) are updated based on simplified models and tech effects.
+4.  Pending events are processed, potentially altering game state (resources, balance, market prices).
+5.  New random events are potentially scheduled.
+6.  Farm health and value are recalculated (value based on soil, tech, base land value).
+7.  If running headless test, the assigned `strategyTick` function executes farm actions (plant, irrigate, fertilize, harvest, research).
+8.  If running in browser, the UI updates, and player actions are handled via UI event listeners.
+9.  Season and Year advance, triggering interest calculation, subsidies, climate change progression, and potential milestone events.
 
-### 1. Core Growth Mechanics (Simulation Engine - Functional Requirement)
-**Current Status:** ❌ Needs significant revision
-- Crops get stuck at approximately 46% growth and don't reach maturity.
-- Manual irrigation doesn't have meaningful impact.
-- Growth rates don't properly account for environmental factors effectively.
+## 4. System Architecture & Modules
 
-**Key Revisions Needed:**
-- **Fix Growth Rate Calculation:** Ensure crops can reach harvest in reasonable timeframes by revising the growth rate calculation to properly accumulate Growing Degree Days (GDD) and transition through growth stages.
-- **Balance Water and Soil Impact:**  Implement a balanced impact of water availability and soil health on growth progression.
-- **Meaningful Irrigation:** Make irrigation actions provide significant and measurable benefits to crop growth, especially for water-stressed crops.
-- **Growth Stage Transitions:** Implement and test proper growth stage transitions based on GDD accumulation and environmental conditions.
+The modular architecture remains, with updates reflecting the headless testing setup.
 
-**Original Functional Requirements Addressed/Enhanced:**
-- *Simulation Engine: Runs in daily ticks; supports variable time scales.* (Existing, needs to integrate revised growth mechanics)
-- *Simulation Engine: Updates state variables (water balance, soil nutrients, crop growth via GDD, yield, economic factors) using real-world formulas.* (Needs significant revision for growth and water/soil impact)
-- *Module 1: Simulation Engine Responsibilities: Accumulate Growing Degree Days (GDD) and update crop stages.* (Focus of revision)
+- **Module 1: Simulation Engine (`game.js`, `cell.js`)**
+    - **Responsibilities:** Manages core game state and daily `runTick` execution. Handles `headless` flag. Contains `strategyTick` hook. Simulates crop growth, soil health, cell water levels. Calculates farm health. Manages tech research state. Applies event effects. Basic economics (balance, interest, subsidies, overhead).
+    - **Current State:** Functional but needs significant economic balancing. Growth/yield models are basic. Complex soil/nutrient/labor models are future work.
 
-### 2. Agricultural Economic Model (Simulation Engine & HUD - Functional Requirement)
-**Current Status:** ❌ Needs implementation
-- Current economic model lacks depth and realism.
-- No seasonal financing options to manage cash flow.
-- Limited economic pressure or risk to incentivize strategic financial planning.
+- **Module 2: Data Modules (`crops.js`, `technology.js`)**
+    - **Responsibilities:** Define static data for crops and technologies (costs, effects, prerequisites, etc.). Provide helper functions (`getCropById`, `getTechEffectValue`, etc.).
+    - **Current State:** Functional. Data values require ongoing balancing.
 
-**Key Revisions Needed:**
-- **Seasonal Loan System:** Implement a system of seasonal crop planting loans at the start of the growing season, including loan interest calculations, crop insurance options, and loan default consequences.
-- **Operating Costs:** Add realistic operating costs, including maintenance costs scaling with farm size, irrigation costs that increase during drought, and labor costs that vary by crop type and season.
-- **Yield-Financial Relationships:**  Establish a clear and impactful correlation between soil health, yield, and profit. Implement strategic market price fluctuations to add economic dynamism.
+- **Module 3: Event System (`events.js`)**
+    - **Responsibilities:** Generate and apply probabilistic events (weather, market, policy, tech). Handles event duration and impact scaling. Includes heat stress and drought reserve impact.
+    - **Current State:** Functional. Event probability, frequency, and magnitude need balancing. Logging levels adjusted.
 
-**Original Functional Requirements Addressed/Enhanced:**
-- *Simulation Engine: Updates state variables (economic factors).* (Needs new economic model implementation)
-- *HUD Module: Displays metrics: bank balance, debt, farm value, farm health, years played. Updates dynamically with simulation state changes.* (Will reflect new economic model)
+- **Module 4: Utility Module (`utils.js`)**
+    - **Responsibilities:** Provide helper functions (`formatCurrency`, `calculateFarmHealth`, `calculateFarmValue`). Contains `Logger` class.
+    - **Current State:** Functional. `calculateFarmValue` revised to exclude cash balance and adjust tech value. Logger levels refined.
 
-### 3. Soil Health System (Simulation Engine & Farm Grid - Functional Requirement)
-**Current Status:** ❌ Needs significant revision
-- Soil health currently drops too rapidly to minimum levels.
-- Poor soil management has minimal long-term economic consequences.
-- No effective recovery pathways for degraded soil are implemented.
+- **Module 5: UI Management (`ui.js`, `main.js`, `index.html`)**
+    - **Responsibilities:** Handles rendering and user interaction for the browser-based game only. Initiated via `main.js`. Decoupled from core `runTick`.
+    - **Current State:** Functional but needs UX improvements (see Section 8).
 
-**Key Revisions Needed:**
-- **Soil Health and Crop Impact:** Create a direct and impactful relationship between soil health and: maximum potential yield, growth rate (GDD accumulation), water retention, and fertilizer effectiveness (diminishing returns on poor soil).
-- **Soil Regeneration Mechanics:** Implement realistic soil regeneration mechanics: no-till farming, cover crops, and fallow periods should gradually improve soil health.
-- **Soil Damage Mechanics:** Implement clear soil damage mechanics: continuous monocropping, heavy tillage, and over-fertilization should degrade soil health.
+- **Module 6: Headless Testing Framework (`run-tests.js`, `test/test-harness.js`, `test/strategies.js`)**
+    - **Responsibilities:** Orchestrate automated test runs via Node.js. Instantiate headless game instances. Assign and execute strategies via `strategyTick` hook. Drive simulation using `runTick`. Log results.
+    - **Current State:** Functional. Provides essential tool for balancing. Strategies are basic and need refinement alongside core economic balancing.
 
-**Original Functional Requirements Addressed/Enhanced:**
-- *Simulation Engine: Implement models for nutrient cycling, soil erosion (e.g. USLE).* (Needs substantial revision and balancing)
-- *Farm Grid View: Displays the farm as a grid (each cell with attributes like yield, soil quality, water status). Allows color-coded overlays (switchable views such as yield or nutrient status).* (Will visually represent revised soil health system)
+## 5. Planned Revisions / Future Work (Major Systems)
 
-### 4. Water Management System (Simulation Engine & Farm Grid - Functional Requirement)
-**Current Status:** ⚠️ Needs refinement
-- Water systems are functional but need rebalancing for realism and player impact.
-- Irrigation decisions don't have a sufficiently impactful effect on crop outcomes.
+These key systems, outlined in the original TDD, remain **priorities for future development** to achieve the desired simulation depth:
 
-**Key Revisions Needed:**
-- **Cell-Level Water Management:** Improve cell-level water management where irrigation provides significant benefits to water-stressed crops and soil health affects water retention. Water efficiency technologies should offer clear and tangible benefits.
-- **Groundwater Depletion:** Implement groundwater depletion mechanics, where deeper wells lead to higher pumping costs and aquifer depletion occurs during extended drought.
-- **Water Rights/Allocation:** Add a water rights/allocation system for surface water to reflect California's water management context.
+- **Agricultural Economic Model:** Implement seasonal loans, crop insurance, detailed operating costs (especially labor per crop type), realistic profit margins.
+- **Soil Health System:** Model Soil Organic Matter (OM) impacting water holding capacity and nutrient availability. Implement nutrient cycling (N, P, K) with crop uptake, fertilizer inputs, fixation (covers), and leaching losses. Refine impact of tillage, covers, compost on OM and health.
+- **Water Management System:** Implement groundwater pumping costs scaling with depth, aquifer depletion mechanics (linked to SGMA concept). Add surface water rights/allocations that vary with drought.
+- **Labor Model:** Track labor demand per crop/task vs. availability. Implement wage fluctuations or penalties/losses for labor shortages. Model impact of mechanization tech.
+- **Crop Rotation:** Implement tracking of crop history per plot and provide explicit benefits (pest/disease reduction, soil health boost) for diverse rotations, and stronger penalties for continuous monoculture.
+- **Advanced Events:** Add flood events (requiring drainage/levees?), wildfire smoke impacts, pest/disease outbreaks linked to climate/monoculture. Model multi-year impacts of major events.
 
-**Original Functional Requirements Addressed/Enhanced:**
-- *Simulation Engine: Implement models for water balance.* (Needs refinement and inclusion of groundwater/rights)
-- *Farm Grid View: Displays the farm as a grid (each cell with attributes like water status).* (Will visually represent refined water management system)
+## 6. Target Formulas for Future Implementation (From Research)
 
-### 5. Climate Adaptation & Technology (Tech Tree & Simulation Engine - Functional Requirement)
-**Current Status:** ⚠️ Partially implemented
-- Technologies exist in a tech tree but their benefits are not impactful enough to drive strategic decisions.
-- Adaptation strategies lack clear and compelling cost-benefit tradeoffs.
+These represent more realistic models to incorporate during future revisions:
 
-**Key Revisions Needed:**
-- **Clear Technology Pathways:** Define distinct and meaningful technology pathways focusing on water, soil, and crops (e.g., water-focused: drip → soil sensors → AI irrigation; soil-focused: no-till → cover crops → regenerative; crop-focused: resistant varieties → greenhouse → vertical farming).
-- **Meaningful Technology Effects:**  Ensure technology effects are impactful and reflect real-world benefits (e.g., drip irrigation water reduction, no-till soil health improvement, AI input cost reduction).
-- **Synergy Bonuses:** Implement synergy bonuses for complementary technologies to incentivize strategic technology combinations (e.g., soil sensors + AI irrigation = enhanced water savings).
+- **Water Balance (Daily):** `M[t+1] = M[t] + I[t] + R[t] - (Kc * ET₀[t]) - D[t]`
+- **Yield Response to Water (FAO):** `1 - Y/Ymax = Ky * (1 - ETa/ETm)`
+- **Growing Degree Days:** `GDD = max(((Tmax+Tmin)/2 - Tbase), 0)`
+- **Nitrogen Budget:** `N_soil_new = N_soil_old + N_fert + N_fix - N_uptake - N_leached`
+- **Soil Organic Matter:** `ΔOM = Inputs - (k * OM)`
+- **Soil Erosion (USLE):** `A = R*K*LS*C*P`
+- **Net Present Value (NPV):** `NPV = sum( CashFlow_t / (1+r)^t )`
 
-**Original Functional Requirements Addressed/Enhanced:**
-- *Tech Tree Module: Manages research/upgrades (e.g., no-till, AI irrigation, drone-based precision). Unlocks new gameplay options when prerequisites are met. Applies cost/efficiency benefits to simulation variables.* (Needs significant revision to technology effects and pathways)
+*(Note: Current implementation uses simpler approximations of some of these concepts).*
 
-### 6. Game Flow & Progression (HUD & UI Integration - Functional Requirement)
-**Current Status:** ⚠️ Needs refinement
-- No clear game over or recovery conditions, leading to a potentially directionless gameplay experience.
-- Limited feedback on farm performance and long-term strategic success.
+## 7. Testing Methodology (Current & Planned)
 
-**Key Revisions Needed:**
-- **Year-to-Year Progression:** Implement clearer year-to-year progression with annual farm reports summarizing key metrics and providing feedback on player performance. Define long-term goals and achievements to provide direction.
-- **Challenging but Recoverable Failure States:** Create challenging but recoverable failure states, such as financial stress with loan options and ecological warning thresholds before irreversible environmental damage. Implement recovery pathways from near-failure scenarios.
+- **Headless Strategy Testing (Current):** Primary method for balancing. Run `node run-tests.js` to execute automated strategies (`monoculture`, `diverse`, `tech-focus`, `water-saving`, `no-action`) over 50 simulated years. Analyze end-state results (Balance, Farm Value, Health, Water, Sustainability, Techs) and console logs (INFO level by default) to identify economic viability issues, event impacts, and strategy effectiveness.
+- **Unit Testing (Planned):** Implement unit tests for critical functions within modules (e.g., `cell.update`, `calculateFarmValue`, event application logic) using a framework like Jest or Mocha.
+- **Integration Testing (Planned):** Create tests simulating interactions between modules (e.g., does researching water tech correctly reduce water use and affect economics over a season?).
+- **User Acceptance Testing (Planned):** Manual testing of the browser version for usability, engagement, clarity of feedback, and overall fun/educational value, especially after major balancing or feature additions.
 
-**Original Functional Requirements Addressed/Enhanced:**
-- *HUD Module: Displays metrics: years played. Updates dynamically with simulation state changes.* (Will be enhanced with annual reports and clearer progression feedback)
-- *User Interface & Integration: Minimal in-game tooltips; advisors provided externally (players can copy/paste queries).* (Game flow enhancements should improve user experience and feedback)
+## 8. Head-Full Game Needs & UI/UX
 
-### 7. Random Event Generator (Functional Requirement)
-**(No significant revisions explicitly mentioned in New TDD, but should be reviewed in context of revised systems)**
-**Current Status:** Functioning as described in Old TDD.
+While headless testing is efficient for balancing, the **interactive browser experience needs attention:**
 
-**Original Functional Requirements Addressed/Enhanced:**
-- *Random Event Generator: Produces plausible, probabilistic events (drought, flood, wildfire, tariff changes) based on regional data. Alters simulation parameters (e.g., reducing water availability, triggering yield loss).* (Functionality retained, ensure events are impactful in the revised system)
+- **Usability:** Manually clicking every plot for planting, irrigation, or harvesting is tedious for a full field.
+- **Required Feature:** Implement **bulk action tools**:
+    - "Plant/Irrigate/Fertilize/Harvest Row" button/mode.
+    - "Plant/Irrigate/Fertilize/Harvest Column" button/mode.
+    - "Plant/Irrigate/Fertilize/Harvest Whole Field" (or maybe quadrant/zone) button/mode. This is crucial for playability.
+- **Feedback:** Ensure UI clearly communicates current tool/action mode, costs, and outcomes. Improve tooltips or info panels.
+- **Performance:** Monitor rendering performance as complexity increases.
 
-## System Architecture & Modules
+## 9. Planning for ML Advisor
 
-The system architecture remains modular, facilitating progressive development and testing.
+The current headless, modular structure is well-suited for future Machine Learning integration (e.g., training a Reinforcement Learning agent to play the game).
 
-**Module 1: Simulation Engine**
-- **Responsibilities:**
-    - Calculate daily water balance: `M[t+1] = M[t] + I[t] + R[t] - (Kc × ET₀[t]) - D[t]`
-    - Accumulate Growing Degree Days (GDD) and update crop stages (Revised formulas needed).
-    - Update soil nutrient levels and soil health using a mass balance approach and degradation/regeneration mechanics (Revised system needed).
-    - Compute yield reduction incorporating soil health, water stress, climate factors, and technology: `actual_yield = potential_yield * soil_factor * water_factor * climate_factor * tech_factor`.
-    - Implement agricultural economic model including loans, operating costs, and market fluctuations (NEW).
-    - Manage random event effects on simulation variables.
-- **Tests:**
-    - Verify water balance update given sample inputs.
-    - Confirm GDD accumulation and revised crop stage transitions.
-    - Check nutrient cycling and soil health dynamics over simulated days.
-    - Validate yield calculation under simulated water stress, soil health, and technology conditions.
-    - Test economic model functionalities (loans, costs, market impacts).
-    - Verify random event effects on simulation variables.
+**Key Considerations for ML:**
 
-**Module 2: Random Event Generator**
-- **Responsibilities:**
-    - Generate events based on region-specific probabilities and potentially game state (e.g., drought more likely after consecutive dry years).
-    - Modify simulation variables (e.g., drop water levels for drought, spike water costs for flood, impose tariffs).
-- **Tests:**
-    - Simulate multiple days to verify event frequency aligns with set probabilities.
-    - Ensure that events correctly adjust the simulation state (e.g., triggering a 20% yield loss on drought events, impacting water levels, economics).
+- **Environment Interface:** The `CaliforniaClimateFarmer` class already forms the basis of the environment. We will need to formalize:
+    - **State Representation (Observation Space):** Define what information the ML agent receives each step. This could include: current balance, year/day/season, water reserve, average soil health, tech researched (encoded), market prices, active negative events, and potentially simplified grid state (e.g., % plots planted, % harvest-ready). Need to balance detail vs. complexity.
+    - **Action Space:** Define the discrete actions the agent can take (e.g., research tech X, plant crop Y on plot Z, irrigate plot Z, fertilize plot Z, wait). Bulk actions simplify the action space.
+    - **Reward Function:** Define how to reward the agent. This is critical. Rewards could be based on:
+        - Change in balance/farm value per step/year.
+        - Successful harvests.
+        - Reaching sustainability score milestones.
+        - Penalties for bankruptcy or very low health/sustainability.
+        - A combination, weighted appropriately.
+    - **`step()` function:** The current `game.runTick()` is essentially the core of the `step` function needed by RL libraries. We'd wrap it to accept an action, run the tick (including applying the chosen action via the strategy hook or a dedicated agent action method), calculate the reward, determine if the episode is done (bankruptcy/time limit), and return (newState, reward, done, info).
+- **Framework Choice:**
+    - **TensorFlow.js:** Can run directly in Node.js or potentially even the browser, using the existing JS codebase. Good for integration.
+    - **Python (Stable-Baselines3, etc.) via API:** Create a simple Node.js server (using e.g., Express) that exposes the JS simulation engine via API endpoints (e.g., `/reset`, `/step`, `/getState`). Python RL libraries can then interact with this API. This allows using the powerful Python ML ecosystem without rewriting the simulation core.
+- **Training:** Requires significant computational resources to run thousands/millions of simulation steps. The fast headless execution is essential here.
 
-**Module 3: Tech Tree Manager**
-- **Responsibilities:**
-    - Maintain tech tree nodes with prerequisites, costs, and impactful benefits, organized in clear pathways (Water, Soil, Crop focused).
-    - Unlock upgrades that adjust simulation parameters (e.g., reduce irrigation water loss, improve soil health recovery rate, reduce labor costs).
-    - Implement synergy bonuses for technology combinations.
-- **Tests:**
-    - Test prerequisite checks and proper unlocking of tech nodes.
-    - Verify that applied tech upgrades modify simulation variables as specified with meaningful impacts.
-    - Test synergy bonuses for combined technologies.
+**Planning Ahead:** As we balance and add features, keep the state/action/reward definitions in mind. Ensure the core simulation remains deterministic (given the same inputs/random seed, produces the same output) for reproducible training.
 
-**Module 4: Farm Grid & Zone Management**
-- **Responsibilities:**
-    - Render a grid (using canvas or an HTML table) representing the farm.
-    - Allow players to view different metrics (yield, soil quality, water status) via color overlays.
-    - Support cell-level interactions for crop zoning decisions, irrigation, and soil management practices.
-    - Provide visual feedback for soil conditions.
-- **Tests:**
-    - Check grid renders correctly with the correct number of cells.
-    - Verify that clicking on a cell brings up selection options.
-    - Confirm that color overlays correctly represent underlying simulation data (including soil health visualization).
+## 10. Deliverables & Constraints
 
-**Module 5: HUD & UI Integration**
-- **Responsibilities:**
-    - Display key metrics (bank balance, debt, farm value, farm health, years played) that update each tick and in annual reports.
-    - Integrate with simulation engine and farm grid to reflect real-time changes and player actions.
-    - Implement UI elements for game flow and progression feedback.
-- **Tests:**
-    - Ensure HUD metrics update in real time as simulation variables change.
-    - Validate that UI events (e.g., zone decision changes, technology research) propagate to the simulation state.
-    - Test UI for game flow and progression feedback, including annual reports.
-
-**Module 6: Data Persistence & Save/Load**
-- **Responsibilities:**
-    - Save game state (simulation variables, tech tree progress, farm grid layout, economic state) to local storage.
-    - Load saved state accurately and completely.
-- **Tests:**
-    - Save a game state and verify all variables are restored correctly on load.
-
-## Development Phases & Implementation Plan (Prioritized Revisions)
-
-**Phase 1: Core Growth Mechanics Fix**
-- Revise crop growth calculation formulas.
-- Implement improved water-soil-growth relationships.
-- Fix manual irrigation effectiveness.
-- Add proper growth stage transitions and testing.
-
-**Phase 2: Agricultural Economic Model**
-- Add seasonal loan system, interest, and crop insurance.
-- Implement operating costs (maintenance, irrigation, labor).
-- Balance yield-financial impacts and market price fluctuations.
-
-**Phase 3: Soil System Overhaul**
-- Revise soil health calculation formula and impact on crop growth.
-- Implement soil regeneration mechanics (no-till, cover crops, fallow).
-- Add soil degradation mechanics (monocropping, tillage, over-fertilization).
-- Add visual feedback for soil conditions on the Farm Grid.
-
-**Phase 4: Water System Enhancement**
-- Fix irrigation effectiveness and cell-level water management.
-- Implement groundwater depletion mechanics.
-- Add water rights/allocation system (optional stretch goal if time allows).
-- Balance water costs and benefits.
-
-**Phase 5: Technology System Improvement**
-- Revise technology effects to be more impactful and create clear pathways.
-- Implement technology synergies.
-- Create clearer UI for technology benefits and research paths.
-- Balance research costs vs. benefits for strategic technology adoption.
-
-**Phase 6: Game Flow & Progression**
-- Add annual farm reports with key metrics and performance summaries.
-- Implement challenging but recoverable failure states and recovery mechanics.
-- Create achievement system and long-term goals to enhance player engagement.
-- Balance difficulty curve for a compelling and educational gameplay experience.
-
-## Key Formulas (from New TDD - Updated)
-
-### Soil Health Impact on Yield
-```javascript
-soil_factor = 0.2 + (soil_health / 100) * 0.8;
-```
-
-### Water Stress Impact
-```javascript
-water_factor = Math.pow(water_level / 100, crop.waterSensitivity);
-```
-
-### Growth Rate Modification
-```javascript
-modified_gdd = daily_gdd * soil_factor * water_factor;
-```
-
-### Yield Calculation
-```javascript
-actual_yield = potential_yield * soil_factor * water_factor * climate_factor * tech_factor;
-```
-
-### Soil Degradation
-```javascript
-soil_health -= base_degradation * monocrop_factor * tillage_factor;
-```
-
-### Technology ROI
-```javascript
-roi = (cost_savings + yield_increase_value) / tech_cost;
-payback_period = tech_cost / annual_benefit;
-```
-
-## Testing Methodology (from New TDD)
-
-- **Unit Testing:** Use a JavaScript testing framework (e.g., Jasmine or Mocha) for each module, focusing on individual functions and logic.
-- **Integration Testing:** Simulate full game ticks and verify that modules interact as expected, particularly focusing on the revised core mechanics, economic model, soil and water systems, and technology impacts. Test event triggers and their cascading effects.
-- **Strategy-Based Automated Testing:** Create benchmark scenarios (drought year, normal year, etc.) and run automated tests for different farming strategies (sustainable, monocropping, tech-focused, water conservation) to evaluate economic and environmental outcomes over 10-year simulations.
-- **User Acceptance Testing (UAT):** Ensure that the game runs smoothly in standard web browsers. Validate that gameplay is balanced, engaging, educational, and that the difficulty curve is appropriate. Check for clear metrics and intuitive UI.
-
-## Deliverables & Constraints (from Old TDD)
-
-**Code Artifacts:**
-- Well-organized HTML, CSS, and JavaScript files.
-- Clear inline comments and comprehensive documentation.
-- Modular design to allow progressive development and maintainability.
-- `/california-climate-farmer` project directory with the file structure as defined below.
-
-**Performance:**
-- Optimize simulation tick speed to support both detailed daily ticks and fast-forward modes.
-- Ensure responsive UI updates, especially for grid view rendering and dynamic HUD metrics.
-
-**Documentation:**
-- This combined TDD serves as the comprehensive specification.
-- Keep code explanations concise and use clear pseudocode where necessary for complex logic.
-
-## File Structure (from New TDD - Corrected CSS Path)
-
+- **Code:** Well-commented, modular JavaScript using ES Modules.
+- **Testing:** Automated headless tests via Node.js. Future unit/integration tests.
+- **Documentation:** This TDD, README.md, inline code comments.
+- **Performance:** Headless tests should run quickly (currently <100ms per 50-year run is good). Browser version needs to maintain responsive UI.
 ```
 /california-climate-farmer
 |-- index.html
