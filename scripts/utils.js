@@ -41,39 +41,49 @@ export function calculateFarmHealth(grid, waterReserve) {
 }
 
 // Calculate farm value based on land, crops, soil quality, technologies, and balance
-export function calculateFarmValue(grid, technologies, currentBalance) {
+export function calculateFarmValue(grid, technologies) {
+     // Ensure grid and technologies are valid arrays
      if (!grid || grid.length === 0 || !grid[0] || grid[0].length === 0) return 0;
+     if (!technologies) technologies = []; // Handle case where technologies might not be passed initially
 
-    let value = 50000; // Base land value
+    let baseLandValue = 50000; // Represents potential value, might decrease if soil is ruined?
     let developedValue = 0;
     let techValue = 0;
 
-    const soilValueMultiplier = 50;
-    const techValueMultiplier = 1.0;
-
+    const soilValueMultiplier = 50; // Base value per % soil health per plot
+    const techDepreciationFactor = 0.75; // Tech adds value, but maybe less than its full cost?
 
     for (let row = 0; row < grid.length; row++) {
         for (let col = 0; col < grid[0].length; col++) {
             if(grid[row] && grid[row][col]) {
                 const cell = grid[row][col];
-                developedValue += cell.soilHealth * soilValueMultiplier;
+                // Soil quality contributes to land value
+                developedValue += Math.max(0, cell.soilHealth) * soilValueMultiplier; // Ensure soil health isn't negative
+
+                // Growing crops add temporary value based on progress
                 if (cell.crop.id !== 'empty' && cell.crop.basePrice > 0) {
+                    // Value based on potential yield value at current growth stage
                     developedValue += cell.crop.basePrice * (cell.growthProgress / 100);
                 }
             }
         }
     }
 
+    // Value from researched technologies (depreciated value)
     technologies.forEach(tech => {
         if (tech.researched) {
-            techValue += tech.cost * techValueMultiplier;
+            techValue += tech.cost * techDepreciationFactor;
         }
     });
 
-    const cashValue = Math.max(0, currentBalance);
-    value += developedValue + techValue + cashValue;
+    // Total value = Base Land Potential + Developed Value (Soil + Crops) + Technology Value
+    // We removed cash balance from farm asset value.
+    let totalValue = baseLandValue + developedValue + techValue;
 
-    return Math.round(value);
+    // Ensure value doesn't go below a minimum threshold (e.g., base land value)
+    totalValue = Math.max(baseLandValue, totalValue);
+
+    return Math.round(totalValue);
 }
 
 // Logger for debug info
