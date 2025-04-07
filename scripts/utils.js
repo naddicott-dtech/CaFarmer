@@ -8,10 +8,25 @@
 export function formatCurrency(value) {
     const num = Number(value);
     if (isNaN(num)) {
+        // console.warn(`formatCurrency received NaN for value: ${value}`); // Optional warning
         return '$NaN';
     }
-    return '$' + num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    // Ensure it handles negative numbers correctly for display
+    const options = {
+        style: 'currency',
+        currency: 'USD', // Or your desired currency
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    };
+    // Use Intl.NumberFormat for better localization and formatting
+    try {
+        return new Intl.NumberFormat('en-US', options).format(num);
+    } catch (e) {
+        // Fallback for environments without Intl support or other errors
+        return '$' + num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
 }
+
 
 // Calculate farm health based on soil and water conditions
 export function calculateFarmHealth(grid, waterReserve) {
@@ -29,41 +44,47 @@ export function calculateFarmHealth(grid, waterReserve) {
         }
     }
 
-    if (plotCount === 0) return 50;
+    if (plotCount === 0) return 50; // Default health if no plots
 
     const avgSoilHealth = totalSoilHealth / plotCount;
+    // Water reserve factor contributes, but soil is more dominant
     const waterFactor = Math.max(0, Math.min(100, waterReserve)) / 100;
 
-    let farmHealth = Math.round((avgSoilHealth * 0.7 + waterFactor * 30));
-    farmHealth = Math.max(0, Math.min(100, farmHealth));
+    // Weighted average: 70% soil health, 30% water reserve
+    let farmHealth = Math.round((avgSoilHealth * 0.7) + (waterFactor * 100 * 0.3)); // Ensure waterFactor is scaled correctly
+    farmHealth = Math.max(0, Math.min(100, farmHealth)); // Clamp between 0 and 100
 
     return farmHealth;
 }
 
-// Calculate farm value based on land, crops, soil quality, technologies, and balance
+// Calculate farm value based on land, soil quality, GROWING crops, and technologies
+// ** CONFIRMED ** Does NOT include cash balance.
 export function calculateFarmValue(grid, technologies) {
      // Ensure grid and technologies are valid arrays
      if (!grid || grid.length === 0 || !grid[0] || grid[0].length === 0) return 0;
      if (!technologies) technologies = []; // Handle case where technologies might not be passed initially
 
-    let baseLandValue = 50000; // Represents potential value, might decrease if soil is ruined?
+    let baseLandValue = 50000; // Keep base value modest
     let developedValue = 0;
     let techValue = 0;
 
-    const soilValueMultiplier = 50; // Base value per % soil health per plot
-    const techDepreciationFactor = 0.75; // Tech adds value, but maybe less than its full cost?
+    // ADJUSTMENT: Slightly increase soil value multiplier
+    const soilValueMultiplier = 60; // Was 50 - Better soil contributes more value per plot
+    // ADJUSTMENT: Increase tech depreciation factor - tech holds value better
+    const techDepreciationFactor = 0.85; // Was 0.75
 
     for (let row = 0; row < grid.length; row++) {
         for (let col = 0; col < grid[0].length; col++) {
             if(grid[row] && grid[row][col]) {
                 const cell = grid[row][col];
-                // Soil quality contributes to land value
-                developedValue += Math.max(0, cell.soilHealth) * soilValueMultiplier; // Ensure soil health isn't negative
+                // Soil quality contributes significantly to land value
+                developedValue += Math.max(0, cell.soilHealth) * soilValueMultiplier; // Value per % soil health
 
-                // Growing crops add temporary value based on progress
-                if (cell.crop.id !== 'empty' && cell.crop.basePrice > 0) {
-                    // Value based on potential yield value at current growth stage
-                    developedValue += cell.crop.basePrice * (cell.growthProgress / 100);
+                // Value from GROWING crops (potential harvest value scaled by progress)
+                if (cell.crop.id !== 'empty' && cell.crop.harvestValue > 0 && cell.growthProgress > 0) {
+                     // Use harvestValue (potential income) instead of basePrice (cost)
+                     // Add value proportional to growth progress
+                     developedValue += cell.crop.harvestValue * (cell.growthProgress / 100);
                 }
             }
         }
@@ -77,7 +98,6 @@ export function calculateFarmValue(grid, technologies) {
     });
 
     // Total value = Base Land Potential + Developed Value (Soil + Crops) + Technology Value
-    // We removed cash balance from farm asset value.
     let totalValue = baseLandValue + developedValue + techValue;
 
     // Ensure value doesn't go below a minimum threshold (e.g., base land value)
@@ -86,15 +106,19 @@ export function calculateFarmValue(grid, technologies) {
     return Math.round(totalValue);
 }
 
+
 // Logger for debug info
+// (Logger class remains unchanged from provided code)
 export class Logger {
     constructor(maxLogs = 200, verbosityLevel = 1, isHeadless = false) {
         this.logs = [];
         this.maxLogs = maxLogs;
         this.verbosityLevel = verbosityLevel; // 0: Error, 1: Info, 2: Debug, 3: Verbose
         this.isHeadless = isHeadless;
-        // *** CHANGE DEFAULT CONSOLE LOG LEVEL HERE ***
-        this.consoleLogLevel = 1; // Default: Log only ERR (0) and INF (1) to console
+        // Default: Log only ERR (0) and INF (1) to console
+        this.consoleLogLevel = 1;
+         // Set console log level based on debugMode if provided during instantiation implicitly
+         // Example: if(debugMode) this.consoleLogLevel = 2; // Log DBG too if debugMode is true
     }
 
     // Add a log entry
@@ -105,28 +129,24 @@ export class Logger {
         let formattedMessage = message;
 
         if (typeof message === 'object' && message !== null) {
-            try {
-                formattedMessage = JSON.stringify(message);
-            } catch (e) {
-                formattedMessage = '[Unserializable Object]';
-            }
+            try { formattedMessage = JSON.stringify(message); }
+            catch (e) { formattedMessage = '[Unserializable Object]'; }
         } else {
             formattedMessage = String(message);
         }
 
+        // Use formatCurrency utility for any detected currency strings
         if (formattedMessage.includes('$')) {
-            formattedMessage = formattedMessage.replace(/\$(-?\d{1,3}(?:,\d{3})*|\d+)/g, (match, p1) => {
-                 const num = Number(String(p1).replace(/,/g, ''));
-                 return isNaN(num) ? match : '$' + num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+            // More robust regex to handle negative signs and avoid formatting already formatted numbers
+            formattedMessage = formattedMessage.replace(/(?<!\d\.)\$(-?\d{1,3}(?:,\d{3})*|\d+)(?!\.?\d)/g, (match, p1) => {
+                 const numStr = String(p1).replace(/,/g, '');
+                 const num = Number(numStr);
+                 return isNaN(num) ? match : formatCurrency(num); // Use the utility function
             });
         }
 
-        const logEntry = {
-            timestamp: timestamp,
-            message: formattedMessage,
-            level: level,
-            metadata: metadata
-        };
+
+        const logEntry = { timestamp, message: formattedMessage, level, metadata };
 
         this.logs.push(logEntry);
         if (this.logs.length > this.maxLogs) {
@@ -143,25 +163,8 @@ export class Logger {
         return logEntry;
     }
 
-    // Clear all logs
-    clear() {
-        this.logs = [];
-    }
-
-    // Get the most recent N logs
-    getRecentLogs(count = 50) {
-        return this.logs.slice(-count);
-    }
-
-    // Set verbosity level (determines which logs are processed/stored)
-    setVerbosity(level) {
-        this.verbosityLevel = Math.max(0, Math.min(3, level));
-        console.log(`[Logger INF] Verbosity set to ${this.verbosityLevel}`); // Use console.log directly for this meta-message
-    }
-
-    // Set console log level (determines which processed logs appear in console)
-    setConsoleLogLevel(level) {
-        this.consoleLogLevel = Math.max(0, Math.min(3, level));
-        console.log(`[Logger INF] Console log level set to ${this.consoleLogLevel}`); // Use console.log directly
-    }
+    clear() { this.logs = []; }
+    getRecentLogs(count = 50) { return this.logs.slice(-count); }
+    setVerbosity(level) { this.verbosityLevel = Math.max(0, Math.min(3, level)); console.log(`[Logger INF] Verbosity set to ${this.verbosityLevel}`); }
+    setConsoleLogLevel(level) { this.consoleLogLevel = Math.max(0, Math.min(3, level)); console.log(`[Logger INF] Console log level set to ${this.consoleLogLevel}`); }
 }
