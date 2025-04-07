@@ -14,26 +14,22 @@ import * as Events from './events.js';
 
 // --- Constants ---
 // ADJUSTED: Keep interest rate low
-const ANNUAL_INTEREST_RATE = 0.01; // Lowered to 1%
-// ADJUSTED: Raise low threshold back slightly, keep higher tiers
-const SUSTAINABILITY_THRESHOLD_LOW = 35; // Was 30, originally 40
+const ANNUAL_INTEREST_RATE = 0.01; // Keep low
+const SUSTAINABILITY_THRESHOLD_LOW = 35;
 const SUSTAINABILITY_THRESHOLD_MED = 60;
 const SUSTAINABILITY_THRESHOLD_HIGH = 75;
-// KEEP: Base subsidy amounts seem okay if threshold adjusted
 const SUSTAINABILITY_SUBSIDY_BASE_LOW = 3000;
 const SUSTAINABILITY_SUBSIDY_BASE_MED = 6000;
 const SUSTAINABILITY_SUBSIDY_BASE_HIGH = 12000;
-// REMOVED: Early establishment support grant - let first harvest matter more
-// Suggestion B: Early Economics
-const INITIAL_BALANCE = 225000; // Keep slightly higher start
-// ADJUSTED: Further reduce planting cost factor
-const PLANTING_COST_FACTOR = 0.15; // Was 0.2
-// ADJUSTED: Drastically reduce daily overhead
-const DAILY_OVERHEAD_COST = 3; // Was 8 - Minimal baseline cost
 
-// KEEP: Action costs seem low enough now
-const IRRIGATION_COST = 100;
-const FERTILIZE_COST = 150;
+const INITIAL_BALANCE = 225000; // Keep same starting
+// ADJUSTED: Make planting very cheap initially
+const PLANTING_COST_FACTOR = 0.10; // Was 0.15
+// ADJUSTED: Minimal overhead
+const DAILY_OVERHEAD_COST = 2; // Was 3
+
+const IRRIGATION_COST = 100; // Keep low
+const FERTILIZE_COST = 150; // Keep low
 // --- End Constants ---
 
 const DAYS_IN_YEAR = 360; // Define for clarity if using seasons of 90 days
