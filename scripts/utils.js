@@ -60,52 +60,50 @@ export function calculateFarmHealth(grid, waterReserve) {
 // Calculate farm value based on land, soil quality, GROWING crops, and technologies
 // ** CONFIRMED ** Does NOT include cash balance.
 export function calculateFarmValue(grid, technologies) {
-     // Ensure grid and technologies are valid arrays
      if (!grid || grid.length === 0 || !grid[0] || grid[0].length === 0) return 0;
-     if (!technologies) technologies = []; // Handle case where technologies might not be passed initially
+     if (!technologies) technologies = [];
 
     let baseLandValue = 50000; // Keep base value modest
-    let developedValue = 0;
+    let soilValueAddon = 0; // Value added by soil quality *above* a baseline
+    let growingCropValue = 0; // Value of currently growing crops
     let techValue = 0;
 
-    // ADJUSTMENT: Slightly increase soil value multiplier
-    const soilValueMultiplier = 60; // Was 50 - Better soil contributes more value per plot
-    // ADJUSTMENT: Increase tech depreciation factor - tech holds value better
-    const techDepreciationFactor = 0.85; // Was 0.75
+    // ADJUSTMENT: Lower soil value multiplier AND apply it as a bonus above baseline
+    const soilValueMultiplier = 25; // Was 60 - Much lower direct value per % point
+    const baselineSoilHealth = 50; // Only health above this adds value? Or just scale differently? Let's scale.
+    const techDepreciationFactor = 0.80; // Was 0.85 - Slightly less value retention
 
     for (let row = 0; row < grid.length; row++) {
         for (let col = 0; col < grid[0].length; col++) {
             if(grid[row] && grid[row][col]) {
                 const cell = grid[row][col];
-                // Soil quality contributes significantly to land value
-                developedValue += Math.max(0, cell.soilHealth) * soilValueMultiplier; // Value per % soil health
+                // Soil adds value based on its health, but scaled less aggressively
+                soilValueAddon += Math.max(0, cell.soilHealth) * soilValueMultiplier;
 
-                // Value from GROWING crops (potential harvest value scaled by progress)
+                // Value from GROWING crops
                 if (cell.crop.id !== 'empty' && cell.crop.harvestValue > 0 && cell.growthProgress > 0) {
-                     // Use harvestValue (potential income) instead of basePrice (cost)
-                     // Add value proportional to growth progress
-                     developedValue += cell.crop.harvestValue * (cell.growthProgress / 100);
+                     growingCropValue += cell.crop.harvestValue * (cell.growthProgress / 100);
                 }
             }
         }
     }
 
-    // Value from researched technologies (depreciated value)
+    // Value from researched technologies
     technologies.forEach(tech => {
         if (tech.researched) {
             techValue += tech.cost * techDepreciationFactor;
         }
     });
 
-    // Total value = Base Land Potential + Developed Value (Soil + Crops) + Technology Value
-    let totalValue = baseLandValue + developedValue + techValue;
+    // Total value = Base Land + Soil Addon + Growing Crops + Technology
+    // This prevents empty plots with high health from dominating the value.
+    let totalValue = baseLandValue + soilValueAddon + growingCropValue + techValue;
 
-    // Ensure value doesn't go below a minimum threshold (e.g., base land value)
-    totalValue = Math.max(baseLandValue, totalValue);
+    // Ensure value doesn't go below a minimum (e.g., base land + some minimum soil value)
+    totalValue = Math.max(baseLandValue + (10 * soilValueMultiplier * grid.length * grid[0].length) , totalValue); // Floor slightly above pure base
 
     return Math.round(totalValue);
 }
-
 
 // Logger for debug info
 // (Logger class remains unchanged from provided code)
