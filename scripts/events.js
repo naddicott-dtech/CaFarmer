@@ -12,7 +12,7 @@ import { formatCurrency } from './utils.js'; // Import for formatting messages
 
 export function generateRandomEvent(farmState) {
     // Base chance slightly higher
-    if (Math.random() < 0.45) return null; // 55% chance event occurs (was 50%)
+    if (Math.random() < 0.45) return null; // 55% chance event occurs
 
     const eventTypes = [
         { type: 'weather', probability: 0.4 },
@@ -33,24 +33,18 @@ export function generateRandomEvent(farmState) {
         }
     }
 
-    // Pass farmState for context (year, balance, etc.)
     const isEarlyGame = farmState.year <= 2;
 
     switch (selectedType) {
         case 'weather':
-            // Weather events are generally okay early on
             return scheduleWeatherEvent(farmState.day, farmState.climate, farmState.season);
         case 'market':
-            // Market events are okay early on
             return scheduleMarketEvent(farmState.day);
         case 'policy':
-             // Pass farmState for potential scaling based on year/balance later if needed
-             return schedulePolicyEvent(farmState.day, farmState.farmHealth, null, isEarlyGame); // Pass early game flag
+             return schedulePolicyEvent(farmState.day, farmState.farmHealth, null, isEarlyGame);
         case 'technology':
-             // Pass farmState for grant calculation and potential scaling/suppression
-             return generateTechnologyEvent(farmState.day, farmState, isEarlyGame); // Pass early game flag
+             return generateTechnologyEvent(farmState.day, farmState, isEarlyGame);
         default:
-            // Fallback just in case
             return scheduleWeatherEvent(farmState.day, farmState.climate, farmState.season);
     }
 }
@@ -112,7 +106,7 @@ function scheduleMarketEvent(day) {
     }
 }
 
-export function schedulePolicyEvent(day, farmHealth, policyType = null, isEarlyGame = false) { // Added isEarlyGame flag
+export function schedulePolicyEvent(day, farmHealth, policyType = null, isEarlyGame = false) {
     const eventTypes = [ { id: 'water_restriction', probability: 0.4 }, { id: 'environmental_subsidy', probability: 0.3 }, { id: 'new_regulations', probability: 0.3 }];
     if (!policyType) {
         const roll = Math.random();
@@ -121,40 +115,38 @@ export function schedulePolicyEvent(day, farmHealth, policyType = null, isEarlyG
         for (const type of eventTypes) { cumulativeProbability += type.probability; if (roll < cumulativeProbability) { policyType = type.id; break; } }
     }
 
-    // ADJUSTMENT: Slightly reduce chance of costly regulations early on
+    // Keep early game suppression for costly regulations
     if (isEarlyGame && policyType === 'new_regulations') {
-         if (Math.random() < 0.4) { // 40% chance to switch costly early event
-             console.log("[Event Balancing] Switching early costly policy event to subsidy."); // Debug log
+         if (Math.random() < 0.4) { // 40% chance to switch
+             console.log("[Event Balancing] Switching early costly policy event to subsidy.");
              policyType = 'environmental_subsidy';
          }
     }
-    // Schedule event slightly sooner on average
-    const eventDay = day + Math.floor(Math.random() * 15) + 5; // Was up to 20 days + 10
-
-    return generatePolicyEvent(eventDay, farmHealth, policyType); // Generate based on potentially modified type
+    const eventDay = day + Math.floor(Math.random() * 15) + 5;
+    return generatePolicyEvent(eventDay, farmHealth, policyType);
 }
 
-export function generateTechnologyEvent(day, farmState, isEarlyGame = false) { // Added isEarlyGame flag
+export function generateTechnologyEvent(day, farmState, isEarlyGame = false) {
     const eventTypes = [ { id: 'innovation_grant', probability: 0.5 }, { id: 'research_breakthrough', probability: 0.3 }, { id: 'technology_setback', probability: 0.2 } ];
     const roll = Math.random();
     let cumulativeProbability = 0;
     let selectedType = eventTypes[0].id;
     for (const type of eventTypes) { cumulativeProbability += type.probability; if (roll < cumulativeProbability) { selectedType = type.id; break; } }
 
-    // ADJUSTMENT: Reduce chance of setback early, increase chance of grant
+    // Keep early game chance adjustments
     if (isEarlyGame) {
-         if (selectedType === 'technology_setback' && Math.random() < 0.6) { // 60% chance to avoid early setback
-             console.log("[Event Balancing] Switching early tech setback to grant."); // Debug log
+         if (selectedType === 'technology_setback' && Math.random() < 0.6) { // 60% chance to avoid
+             console.log("[Event Balancing] Switching early tech setback to grant.");
              selectedType = 'innovation_grant';
-         } else if (selectedType !== 'innovation_grant' && Math.random() < 0.1) { // 10% bonus chance for early grant
+         } else if (selectedType !== 'innovation_grant' && Math.random() < 0.1) { // 10% bonus chance for grant
              selectedType = 'innovation_grant';
          }
     }
-     // Schedule event slightly sooner on average
-    const eventDay = day + Math.floor(Math.random() * 20) + 5; // Was up to 30 days + 5
+    const eventDay = day + Math.floor(Math.random() * 20) + 5;
 
     switch (selectedType) {
-        case 'innovation_grant': return createInnovationGrantEvent(eventDay, farmState, isEarlyGame); // Pass flag
+        // Pass isEarlyGame flag to grant creation
+        case 'innovation_grant': return createInnovationGrantEvent(eventDay, farmState, isEarlyGame);
         case 'research_breakthrough': return createResearchBreakthroughEvent(eventDay);
         case 'technology_setback': return createTechnologySetbackEvent(eventDay);
         default: return createInnovationGrantEvent(eventDay, farmState, isEarlyGame);
@@ -162,13 +154,12 @@ export function generateTechnologyEvent(day, farmState, isEarlyGame = false) { /
 }
 
 // --- Event Creation Helpers ---
-function createInnovationGrantEvent(day, farmState, isEarlyGame) { // Added flag
+function createInnovationGrantEvent(day, farmState, isEarlyGame) {
     const techCount = farmState?.researchedTechs?.length || 0;
     let grantAmount = 0;
     let message = '';
-    // ADJUSTMENT: Slightly higher base grant and better chance early
     const earlyGrantChance = isEarlyGame ? 0.35 : 0.2; // Higher chance in first 2 years
-    const earlyGrantAmount = 3000; // Increased base amount
+    const earlyGrantAmount = 3000; // Base amount
 
     if (techCount === 0) {
         if (Math.random() < earlyGrantChance) {
@@ -253,12 +244,11 @@ function createMarketOpportunityEvent(day) {
 
 export function generatePolicyEvent(day, farmHealth, policyType) {
     const subsidyAmount = farmHealth > 60 ? 5000 : (farmHealth > 40 ? 3000 : 0);
-    // Base cost - scaling happens in game.js apply
-    const complianceCostBase = 3000;
+    const complianceCostBase = 3000; // Base cost before scaling
     switch (policyType) {
         case 'water_restriction': return { type: 'policy', policyType, day, message: 'Water restriction policy enacted. Irrigation costs increased by 50%.', forecastMessage: 'Policy update: Water restrictions being considered.', isAlert: true, irrigationCostIncrease: 0.5, balanceChange: 0 };
         case 'environmental_subsidy': return subsidyAmount > 0 ? { type: 'policy', policyType, day, message: `You received a ${formatCurrency(subsidyAmount)} environmental subsidy!`, forecastMessage: 'Policy update: Environmental subsidies being discussed.', isAlert: false, balanceChange: subsidyAmount } : null;
-        // Pass the *base* cost, game.js will scale it
+        // Pass the *base* cost for scaling later
         case 'new_regulations': return { type: 'policy', policyType, day, message: `New regulations require compliance upgrades.`, baseCost: complianceCostBase, forecastMessage: 'Policy update: New farming regulations proposed.', isAlert: true, balanceChange: -complianceCostBase }; // Pass negative balanceChange representing base cost
         default: return null;
     }
