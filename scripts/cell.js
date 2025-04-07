@@ -5,66 +5,65 @@
  * Each cell tracks its crop, growth state, environmental conditions, and crop history.
  */
 
-import { crops } from './crops.js';
+import { crops, getCropById } from './crops.js'; // Ensure getCropById is imported if needed here, or rely on game passing full crop data
 
 // Define constants for empty plot soil dynamics
-const EMPTY_PLOT_SOIL_DEGRADATION_DRY = 0.02; // Per day in dry conditions (Summer/low water)
-const EMPTY_PLOT_SOIL_DEGRADATION_WET = 0.01; // Per day in wet conditions (erosion)
-const EMPTY_PLOT_SOIL_REGEN_BASE = 0.005; // Base regen per day (e.g., microbial activity)
+// ADJUSTMENT: Slightly reduce base degradation, slightly increase regen
+const EMPTY_PLOT_SOIL_DEGRADATION_DRY = 0.015; // Was 0.02
+const EMPTY_PLOT_SOIL_DEGRADATION_WET = 0.008; // Was 0.01 (less erosion when just wet)
+const EMPTY_PLOT_SOIL_REGEN_BASE = 0.008; // Was 0.005
 
 // Cell class definition
 export class Cell {
     constructor() {
-        this.crop = crops[0]; // Empty plot by default
-        this.waterLevel = 80;
-        this.soilHealth = 90;
-        this.growthProgress = 0;
+        this.crop = getCropById('empty'); // Use getter for consistency
+        this.waterLevel = 80; // %
+        this.soilHealth = 85; // % - Start slightly lower? Was 90.
+        this.growthProgress = 0; // %
         this.daysSincePlanting = 0;
-        this.fertilized = false;
-        this.irrigated = false;
+        this.fertilized = false; // Has fertilizer been applied this cycle?
+        this.irrigated = false; // Has irrigation been applied today?
         this.harvestReady = false;
-        this.expectedYield = 0; // Base yield expectation before modifiers
+        this.expectedYield = 0; // Base yield % expectation before modifiers
 
-        // Track crop history to implement monocropping penalties
-        this.cropHistory = [];
-        this.consecutivePlantings = 0;
-        this.pestPressure = 0; // % likelihood or severity factor
+        // Track crop history to implement monocropping penalties/benefits
+        this.cropHistory = []; // Stores { id: 'cropId', duration: days }
+        this.consecutivePlantings = 0; // Number of times same crop planted consecutively
+        this.pestPressure = 5; // % factor reducing yield/growth (0-100 scale?) Start with a tiny base
     }
 
     // Plant a new crop
-    plant(newCrop) {
-        if (!newCrop || newCrop.id === 'empty') return false; // Should not happen if called correctly
+    plant(newCropData) { // Expect full crop data object
+        if (!newCropData || newCropData.id === 'empty') return false;
+
+        const previousCropId = this.crop.id;
 
         // Remember previous crop if not empty
-        if (this.crop.id !== 'empty') {
+        if (previousCropId !== 'empty') {
             this.cropHistory.push({
-                id: this.crop.id,
+                id: previousCropId,
                 duration: this.daysSincePlanting
             });
+            if (this.cropHistory.length > 10) this.cropHistory.shift(); // Limit history size
 
-            // Keep history at reasonable size
-            if (this.cropHistory.length > 10) {
-                this.cropHistory.shift();
-            }
-
-            // Check if planting the same crop again
-            if (newCrop.id === this.crop.id) {
+            // Check for monocropping
+            if (newCropData.id === previousCropId) {
                 this.consecutivePlantings++;
-                // Increase pest pressure for monocropping
-                this.pestPressure = Math.min(80, this.pestPressure + 10 * this.consecutivePlantings);
+                // Increase pest pressure more significantly for monocropping
+                this.pestPressure = Math.min(80, this.pestPressure + 15 * this.consecutivePlantings); // Higher increase
             } else {
-                // Reset consecutive plantings when changing crops
+                // Crop rotation benefit
                 this.consecutivePlantings = 0;
-                // Crop rotation benefit: reduce pest pressure
-                this.pestPressure = Math.max(0, this.pestPressure - 30);
+                this.pestPressure = Math.max(0, this.pestPressure - 40); // Stronger reduction for rotation
             }
         } else {
-            // Planting on a previously empty plot
-            this.consecutivePlantings = 0; // Ensure reset
-            // Reduce any lingering pest pressure slightly? Maybe not needed.
+            // Planting on a previously empty plot resets consecutive count
+            this.consecutivePlantings = 0;
+            // Pest pressure might slowly decay on empty plots (handled in update)
         }
 
-        this.crop = newCrop;
+        // Set new crop and reset state
+        this.crop = newCropData;
         this.growthProgress = 0;
         this.daysSincePlanting = 0;
         this.fertilized = false;
@@ -72,45 +71,40 @@ export class Cell {
         this.harvestReady = false;
 
         // Base yield expectation starts at 100%
-        // Reduced by initial pest pressure and consecutive plantings penalty
-        const monocropPenalty = this.consecutivePlantings * 5; // 5% penalty per consecutive planting
-        const pestPenalty = this.pestPressure / 2; // Up to 40% penalty from high pest pressure
+        // ADJUSTMENT: Slightly soften initial penalties
+        const monocropPenalty = this.consecutivePlantings * 4; // Was 5% per planting
+        const pestPenalty = this.pestPressure / 2.5; // Was / 2 (max 32% penalty instead of 40%)
 
-        this.expectedYield = Math.max(40, 100 - monocropPenalty - pestPenalty);
+        this.expectedYield = Math.max(30, 100 - monocropPenalty - pestPenalty); // Floor at 30%
 
         return true;
     }
 
     // Apply irrigation
     irrigate(waterEfficiency = 1.0) {
-        if (this.crop.id === 'empty') return false;
-        // Allow re-irrigation if needed? For now, only once per day.
-        if (this.irrigated) return false;
-
+        if (this.crop.id === 'empty' || this.irrigated) return false;
         this.irrigated = true; // Mark as irrigated for the day
-        // Irrigation amount could be a parameter
-        this.waterLevel = Math.min(100, this.waterLevel + 30 * waterEfficiency);
+        // Assume irrigation adds a fixed amount, modified by efficiency tech?
+        // Or maybe it just tops up to a certain level? Let's use fixed amount.
+        const irrigationAmount = 30 * waterEfficiency; // Base amount added
+        this.waterLevel = Math.min(100, this.waterLevel + irrigationAmount);
         return true;
     }
 
     // Apply fertilizer
     fertilize(fertilizerEfficiency = 1.0) {
-        if (this.crop.id === 'empty') return false;
-        // Allow re-fertilization? For now, only once per growth cycle.
-        if (this.fertilized) return false;
-
+        if (this.crop.id === 'empty' || this.fertilized) return false;
         this.fertilized = true; // Mark as fertilized for this growth cycle
 
-        // Fertilizer effectiveness reduced on depleted soils
+        // Effectiveness depends on soil health
         const soilFactor = 0.5 + (this.soilHealth / 200); // 50% effective at 0 soil, 100% at 100
 
-        // Fertilizer improves soil health slightly
-        // Use named range/parameter? For now, hardcoded.
-        const soilBoost = 15 * fertilizerEfficiency * soilFactor;
+        // Improves soil health slightly
+        const soilBoost = 10 * fertilizerEfficiency * soilFactor; // Reduced boost? Was 15
         this.soilHealth = Math.min(100, this.soilHealth + soilBoost);
 
-        // Yield boost from fertilizer also affected by soil health and pest pressure
-        const yieldBoost = 20 * fertilizerEfficiency * soilFactor * (1 - (this.pestPressure / 150)); // Pest impact capped
+        // Boosts expected yield, impacted by soil and pests
+        const yieldBoost = 15 * fertilizerEfficiency * soilFactor * (1 - (this.pestPressure / 150)); // Reduced boost? Was 20
         this.expectedYield = Math.min(150, this.expectedYield + yieldBoost); // Cap yield boost
 
         return true;
@@ -124,27 +118,30 @@ export class Cell {
 
         // --- Handle Empty Plot Soil Dynamics ---
         if (this.crop.id === 'empty') {
-            // Apply natural soil changes to empty plots
             let soilChange = EMPTY_PLOT_SOIL_REGEN_BASE; // Start with base regeneration
-            // More degradation in dry conditions/summer or if water level is low
-            if (waterReserve < 40 || this.waterLevel < 30) {
-                 soilChange -= EMPTY_PLOT_SOIL_DEGRADATION_DRY;
-            }
-            // Add slight erosion if water level is very high (e.g., > 95) - simulate runoff
-            if (this.waterLevel > 95) {
-                 soilChange -= EMPTY_PLOT_SOIL_DEGRADATION_WET;
-            }
 
-            // Apply No-Till Farming tech effect if researched (reduces degradation)
+            // Apply No-Till effect if present (enhances regen slightly)
             if (techs && techs.includes('no_till_farming')) {
-                 if(soilChange < 0) { // Only reduce degradation, not enhance regen
-                     soilChange *= 0.5; // Halve the degradation rate
-                 }
+                 soilChange *= 1.2; // Small boost to regen with no-till
             }
 
-            this.soilHealth = Math.max(10, Math.min(100, this.soilHealth + soilChange));
-            // Water level in empty plots might slowly evaporate or seep?
-            this.waterLevel = Math.max(0, this.waterLevel - 0.1); // Very slow passive water loss
+            // Degradation factors
+            if (waterReserve < 40 || this.waterLevel < 30) { // Dry conditions
+                 let dryDegradation = EMPTY_PLOT_SOIL_DEGRADATION_DRY;
+                 if (techs && techs.includes('no_till_farming')) dryDegradation *= 0.5; // No-till reduces dry degradation
+                 soilChange -= dryDegradation;
+            }
+            if (this.waterLevel > 95) { // Wet conditions (erosion)
+                 let wetDegradation = EMPTY_PLOT_SOIL_DEGRADATION_WET;
+                 if (techs && techs.includes('no_till_farming')) wetDegradation *= 0.3; // No-till strongly reduces wet erosion
+                 soilChange -= wetDegradation;
+            }
+
+
+            this.soilHealth = Math.max(10, Math.min(100, this.soilHealth + soilChange)); // Apply change, clamp 10-100
+            this.waterLevel = Math.max(0, this.waterLevel - 0.05); // Slower passive water loss on empty plots
+            // Decay pest pressure slowly on empty plots
+            this.pestPressure = Math.max(0, this.pestPressure - 0.1);
 
             return; // Stop update for empty plot
         }
@@ -152,99 +149,107 @@ export class Cell {
         // --- Handle Plot with Crop ---
         this.daysSincePlanting++;
 
-        // Calculate growth progress based on conditions
+        // Calculate growth progress
         const growthRate = this.calculateGrowthRate(waterReserve, techs);
         this.growthProgress += growthRate;
+        this.growthProgress = Math.min(100, this.growthProgress); // Ensure progress doesn't exceed 100 before harvest check
 
         // Check if ready for harvest
         if (!this.harvestReady && this.growthProgress >= 100) {
             this.harvestReady = true;
-            this.growthProgress = 100; // Cap progress at 100
-            return 'harvest-ready'; // Return event string
+            // Don't return yet, apply daily effects even on harvest day
         }
 
-        // If harvestReady, growth stops, but conditions still apply
+        // If already harvestReady, growth stops, but conditions still apply
         if (this.harvestReady) {
-            // Maybe slight degradation of yield if left unharvested too long? Add later if needed.
+            // Potential yield degradation if left unharvested?
+            // Example: Small daily yield loss if ready but not harvested
+            this.expectedYield = Math.max(0, this.expectedYield - 0.1);
         }
 
         // Crop water consumption
-        const baseWaterUse = (this.crop.waterUse / 200) * 100; // Convert factor to % point loss per day
-        // Water use might be affected by growth stage? Simplified for now.
+        const baseWaterUsePerDay = this.crop.waterUse; // Assuming waterUse is scaled appropriately (e.g., % points per day)
         // Apply water efficiency tech
-        const waterEfficiencyFactor = techs && techs.includes('drip_irrigation') ? 0.8 : 1.0; // Drip irrigation reduces use by 20%
-        const actualWaterUse = baseWaterUse * waterEfficiencyFactor;
+        let waterEfficiencyFactor = 1.0;
+        if (techs && techs.includes('drip_irrigation')) waterEfficiencyFactor *= 0.8; // Drip reduces use
+        if (techs && techs.includes('ai_irrigation')) waterEfficiencyFactor *= 0.9; // AI further reduces
+        if (techs && techs.includes('drought_resistant')) waterEfficiencyFactor *= 0.95; // Resistant varieties slightly more efficient
+
+        const actualWaterUse = baseWaterUsePerDay * waterEfficiencyFactor;
         this.waterLevel = Math.max(0, this.waterLevel - actualWaterUse);
 
         // Water stress affects expected yield (if not yet ready for harvest)
         if (this.waterLevel < 30 && !this.harvestReady) {
-            // Reduce expected yield slightly each day under stress
-             const stressPenalty = 1 * (1 - (this.waterLevel / 30)); // More penalty the lower the water
-            this.expectedYield = Math.max(10, this.expectedYield - stressPenalty);
+            const stressPenalty = 0.8 * (1 - (this.waterLevel / 30)); // Slightly less harsh penalty
+            let droughtResistanceFactor = 1.0;
+            if (techs && techs.includes('drought_resistant')) droughtResistanceFactor = 0.6; // Tech reduces penalty
+            this.expectedYield = Math.max(10, this.expectedYield - (stressPenalty * droughtResistanceFactor));
         }
 
-        // Base soil degradation rate from farming
-        let soilDegradation = 0.1; // Base daily degradation from farming activity
-        // Increase degradation with consecutive plantings of the same crop
+        // Soil degradation from farming
+        let soilDegradation = 0.08; // Reduced base daily degradation
         if (this.consecutivePlantings > 0) {
-            soilDegradation *= (1 + (this.consecutivePlantings * 0.3));
+            soilDegradation *= (1 + (this.consecutivePlantings * 0.25)); // Reduced penalty scaling
         }
-        // High pest pressure accelerates soil degradation
-        if (this.pestPressure > 50) { // Threshold for significant impact
-            soilDegradation *= 1.2;
+        if (this.pestPressure > 50) {
+            soilDegradation *= 1.15; // Reduced pest impact scaling
         }
-
         // Apply No-Till Farming tech effect
         if (techs && techs.includes('no_till_farming')) {
-            soilDegradation *= 0.5; // Reduced degradation with no-till
+            soilDegradation *= 0.4; // Stronger reduction with no-till
+        } else {
+            // Increase degradation slightly without no-till?
+             soilDegradation *= 1.1;
         }
 
-        this.soilHealth = Math.max(10, this.soilHealth - soilDegradation);
+        // Check for soil regen techs
+        let soilRegen = 0;
+        if (techs && techs.includes('no_till_farming')) soilRegen += 0.01; // Small base regen from no-till
+        if (techs && techs.includes('silvopasture')) soilRegen += 0.01; // Regen from silvopasture
 
-        // Very depleted soil increases pest pressure chance
-        if (this.soilHealth < 40 && Math.random() < 0.02) {
-            this.pestPressure = Math.min(80, this.pestPressure + 2);
+        // Apply net soil change
+        this.soilHealth = Math.max(10, Math.min(100, this.soilHealth - soilDegradation + soilRegen));
+
+
+        // Pest pressure dynamics
+        if (this.soilHealth < 40 && Math.random() < 0.015) { // Lower chance
+            this.pestPressure = Math.min(80, this.pestPressure + 1.5); // Slower increase
+        }
+        // Slow natural pest pressure decay if low
+        if (this.pestPressure > 0 && this.pestPressure < 30 && !this.fertilized /* Pests might like fertilizer? */ ) {
+             this.pestPressure = Math.max(0, this.pestPressure - 0.05); // Very slow decay
         }
 
-        // Pests might decrease slightly naturally over time if pressure is low? Add later.
+        // Return status if needed by caller (e.g., for UI)
+        if (this.harvestReady) return 'harvest-ready';
     }
 
     // Calculate growth rate based on conditions
     calculateGrowthRate(waterReserve, techs) {
+        if (this.crop.id === 'empty' || this.harvestReady) return 0; // No growth if empty or ready
+
         // Base growth rate based on crop growth time
-        const baseRate = 100 / this.crop.growthTime;
-        if (baseRate <= 0) return 0; // Avoid division by zero for invalid growth times
+        const baseRate = (this.crop.growthTime > 0) ? (100 / this.crop.growthTime) : 0;
+        if (baseRate <= 0) return 0;
 
         // Water factors
         const cellWaterFactor = this.waterLevel / 100;
         const farmWaterFactor = waterReserve / 100;
-        // Weighted average, farm reserve has less direct impact than cell level
-        let combinedWaterFactor = cellWaterFactor * 0.8 + farmWaterFactor * 0.2;
-        // Apply crop's water sensitivity exponent
-        let waterMultiplier = Math.pow(combinedWaterFactor, this.crop.waterSensitivity || 1.0);
-        // Tech: Drought-resistant varieties improve multiplier under stress
-        if (techs && techs.includes('drought_resistant') && waterMultiplier < 0.8) {
-            waterMultiplier = Math.max(waterMultiplier, 0.5); // Ensure it doesn't make things worse, provides minimum benefit
-        }
-         // Tech: AI Irrigation provides a small boost if water isn't perfect
-         if (techs && techs.includes('ai_irrigation') && waterMultiplier < 1.0) {
-             waterMultiplier *= 1.05; // Small 5% boost
-         }
+        let combinedWaterFactor = cellWaterFactor * 0.8 + farmWaterFactor * 0.2; // Cell level more important
+        let waterMultiplier = Math.pow(Math.max(0, combinedWaterFactor), this.crop.waterSensitivity || 1.0); // Ensure base isn't negative
+        if (techs && techs.includes('drought_resistant') && waterMultiplier < 0.8) { waterMultiplier = Math.max(waterMultiplier, 0.5); } // Min benefit under stress
+        if (techs && techs.includes('ai_irrigation') && waterMultiplier < 1.0) { waterMultiplier *= 1.05; } // Small boost
 
-
-        // Soil factor - make soil health impactful
-        // *** FIX: Change const to let ***
-        let soilMultiplier = 0.3 + (0.7 * Math.pow(this.soilHealth / 100, 0.8)); // Power curve for soil impact
-        // Tech: Soil Sensors provide slight optimization boost
-        if (techs && techs.includes('soil_sensors')) {
-            soilMultiplier *= 1.05; // Small 5% boost
-        }
+        // Soil factor
+        let soilMultiplier = 0.3 + (0.7 * Math.pow(this.soilHealth / 100, 0.8)); // Power curve, sensitive to low soil
+        if (techs && techs.includes('soil_sensors')) { soilMultiplier *= 1.05; } // Small boost
+         if (techs && techs.includes('no_till_farming')) { soilMultiplier *= 1.03; } // Tiny boost from no-till structure
 
         // Fertilizer factor
-        const fertilizerMultiplier = this.fertilized ? 1.2 : 1.0;
+        const fertilizerMultiplier = this.fertilized ? 1.2 : 1.0; // Keep boost significant
 
         // Pest pressure reduces growth rate
-        const pestMultiplier = 1 - (this.pestPressure / 200); // Max 40% reduction at 80 pest pressure
+        const pestMultiplier = 1 - (this.pestPressure / 250); // Reduced impact (was / 200)
 
         // Calculate final growth rate, ensuring it's not negative
         const finalRate = baseRate * waterMultiplier * soilMultiplier * fertilizerMultiplier * pestMultiplier;
@@ -260,10 +265,8 @@ export class Cell {
         // Start with the expected yield calculated during growth
         let finalYieldPercentage = this.expectedYield;
 
-        // Apply final modifiers at harvest time (e.g., last-minute events - not implemented here yet)
-
-        // Clamp yield percentage
-        finalYieldPercentage = Math.max(0, Math.min(150, finalYieldPercentage)); // Yield can be > 100% with boosts
+        // Clamp yield percentage (0% to 150%)
+        finalYieldPercentage = Math.max(0, Math.min(150, finalYieldPercentage));
 
         // Calculate final harvest value
         const baseValue = this.crop.harvestValue || 0;
@@ -276,40 +279,40 @@ export class Cell {
             yieldPercentage: Math.round(finalYieldPercentage)
         };
 
-        // --- Reset Cell State ---
-        const harvestedCropId = this.crop.id; // Store before resetting
-        const harvestedCrop = crops.find(c => c.id === harvestedCropId); // Get full crop data for impact
-
-        // Apply soil health impact from harvesting the specific crop
+        // --- Apply Post-Harvest Soil Impact ---
+        const harvestedCropId = this.crop.id;
+        const harvestedCrop = getCropById(harvestedCropId); // Use getter
         const cropSoilImpact = harvestedCrop?.soilImpact || 0; // Use stored crop data
-        const monocropFactor = 1 + (this.consecutivePlantings * 0.2);
-        const harvestImpact = (5 + Math.abs(cropSoilImpact)) * monocropFactor; // Base + Crop Impact, modified by monocropping
+        const monocropFactor = 1 + (this.consecutivePlantings * 0.15); // Reduced penalty scaling
+        // ADJUSTMENT: Reduce base harvest impact slightly
+        const harvestImpact = (4 + Math.abs(cropSoilImpact)) * monocropFactor; // Was 5 + ...
 
-        // Apply impact BEFORE resetting the cell
+        // Apply impact BEFORE resetting the cell state
         this.soilHealth = Math.max(10, this.soilHealth - harvestImpact);
 
-        // Now reset the cell
-        this.crop = crops[0]; // Set to Empty Plot
+        // --- Reset Cell State ---
+        this.crop = getCropById('empty'); // Set to Empty Plot using getter
         this.growthProgress = 0;
         this.daysSincePlanting = 0;
         this.fertilized = false; // Reset fertilizer status
         this.irrigated = false; // Reset daily irrigation status
         this.harvestReady = false;
         this.expectedYield = 0;
-        // Keep consecutivePlantings (used when planting next crop)
-        // Keep pestPressure (let it decay or change with next planting)
-        // Keep cropHistory
+        // Keep consecutivePlantings, pestPressure, cropHistory for next planting decision
 
         return result;
     }
 
     // Apply environmental effects (for events)
     applyEnvironmentalEffect(effect, magnitude, protectionFactor = 1.0) {
-        const effectiveMagnitude = magnitude * protectionFactor;
+        // Ensure protectionFactor doesn't make things worse (e.g., negative protection)
+        protectionFactor = Math.max(0, Math.min(1, protectionFactor)); // Clamp 0-1
+        const effectiveMagnitude = magnitude * (1 - protectionFactor); // Protection reduces the magnitude
 
         switch (effect) {
             case 'water-increase':
-                this.waterLevel = Math.min(100, this.waterLevel + magnitude); // Protection shouldn't reduce benefits
+                // Protection shouldn't reduce benefits of rain
+                this.waterLevel = Math.min(100, this.waterLevel + magnitude);
                 break;
             case 'water-decrease':
                 this.waterLevel = Math.max(0, this.waterLevel - effectiveMagnitude);
@@ -318,26 +321,29 @@ export class Cell {
                 this.soilHealth = Math.max(10, this.soilHealth - effectiveMagnitude);
                 break;
             case 'soil-improve':
-                this.soilHealth = Math.min(100, this.soilHealth + magnitude); // Protection shouldn't reduce benefits
+                // Protection shouldn't reduce benefits
+                this.soilHealth = Math.min(100, this.soilHealth + magnitude);
                 break;
             case 'yield-damage':
                 if (this.crop.id !== 'empty') {
-                    // Apply damage to expected yield, more impact closer to harvest? For now, simple reduction.
+                    // Apply damage to expected yield
                     this.expectedYield = Math.max(0, this.expectedYield - effectiveMagnitude);
                 }
                 break;
-            case 'growth-boost': // Less common, maybe from ideal weather?
+            case 'growth-boost':
                 if (this.crop.id !== 'empty' && !this.harvestReady) {
+                    // Protection shouldn't reduce benefits
                     this.growthProgress = Math.min(100, this.growthProgress + magnitude);
                 }
                 break;
             case 'pest-increase':
-                 // Protection factor could represent IPM or resistant strains
+                 // Protection reduces the increase
                  this.pestPressure = Math.min(80, this.pestPressure + effectiveMagnitude);
                 break;
             case 'pest-decrease': // E.g., beneficial insects event
-                this.pestPressure = Math.max(0, this.pestPressure - magnitude); // Protection shouldn't reduce benefits
+                // Protection shouldn't reduce benefits
+                this.pestPressure = Math.max(0, this.pestPressure - magnitude);
                 break;
         }
     }
-}
+} // End of Cell Class
