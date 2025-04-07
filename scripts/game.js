@@ -426,6 +426,13 @@ export class CaliforniaClimateFarmer {
         this.pendingEvents = remainingEvents;
 
         activeEventsToday.forEach(event => {
+             // Add null check for event object itself
+             if (!event || !event.type) {
+                 this.logger.log(`ERROR: Processing invalid event object.`, 0);
+                 console.error("Invalid event object:", event);
+                 return; // Skip this invalid event
+             }
+
              this.logger.log(`-- Applying event: ${event.type} (${event.subType || event.severity || event.policyType || ''})`, 2);
             let result = {};
             let continueEvent = null;
@@ -433,79 +440,133 @@ export class CaliforniaClimateFarmer {
             let logLvl = 3; // Default VERBOSE
 
             // Determine log level (same logic as before)
-            // ...
+            if (event.isAlert) logLvl = 1;
+            if (event.type === 'frost') logLvl = 1;
+            if (event.type === 'drought' || event.type === 'heatwave') {
+                 if (event.severity === 'severe') logLvl = 1; else logLvl = 2;
+            }
+            if (event.type === 'market' && (event.direction === 'opportunity' || Math.abs(event.changePercent || 0) > 25)) { logLvl = 1; }
+            if (event.type === 'policy' || event.type === 'technology') { logLvl = 1; }
 
-            let originalBalance = this.balance; // Store balance before applying event
+
+            let originalBalance = this.balance;
 
             try {
+                 // *** RESTORED SWITCH CASES ***
                  switch (event.type) {
-                    // ... (rain, drought, heatwave, frost, market cases remain same logic) ...
-
-                    case 'policy':
-                         result = Events.applyPolicyEvent(event, this.balance); // Get base change
+                    case 'rain': // *** ADDED BACK ***
+                        result = Events.applyRainEvent(event, this.grid, this.waterReserve, this.researchedTechs);
+                        this.waterReserve = result.waterReserve;
+                        logMsg = result.message;
+                        if (event.severity === 'heavy') logLvl = 2; else logLvl = 3;
+                        break;
+                    case 'drought': // *** ADDED BACK ***
+                         result = Events.applyDroughtEvent(event, this.grid, this.waterReserve, this.researchedTechs);
+                         if (!result.skipped) {
+                             this.waterReserve = result.waterReserve;
+                             logMsg = result.message;
+                             if (result.continueEvent) {
+                                 continueEvent = { ...event, day: this.day + 1, duration: result.nextDuration, message: result.message };
+                                 if (event.duration === result.nextDuration + 1) { this.logger.log(`Event Started: ${logMsg}`, logLvl); }
+                                 else { this.logger.log(`Event Continues: ${logMsg}`, 3); }
+                                 logMsg = null;
+                             } else {
+                                 this.addEvent(`The drought has ended.`); this.logger.log('Drought event ended.', logLvl);
+                                 logMsg = null;
+                             }
+                         } else { logMsg = null; }
+                        break;
+                    case 'heatwave': // *** ADDED BACK ***
+                        result = Events.applyHeatwaveEvent(event, this.grid, this.waterReserve, this.researchedTechs);
+                         if (!result.skipped) {
+                            this.waterReserve = result.waterReserve;
+                            logMsg = result.message;
+                             if (result.continueEvent) {
+                                continueEvent = { ...event, day: this.day + 1, duration: result.nextDuration, message: result.message };
+                                if (event.duration === result.nextDuration + 1) { this.logger.log(`Event Started: ${logMsg}`, 1); }
+                                else { this.logger.log(`Event Continues: ${logMsg}`, 3); }
+                                logMsg = null;
+                             } else {
+                                 this.addEvent(`The heatwave has ended.`); this.logger.log('Heatwave event ended.', 1);
+                                 logMsg = null;
+                             }
+                         } else { logMsg = null; }
+                        break;
+                    case 'frost': // *** ADDED BACK ***
+                         result = Events.applyFrostEvent(event, this.grid, this.researchedTechs);
+                         logMsg = result.message;
+                        break;
+                    case 'market': // *** ADDED BACK ***
+                         result = Events.applyMarketEvent(event, this.marketPrices, crops);
+                        this.marketPrices = result.marketPrices;
+                        logMsg = result.message;
+                        // Handle temporary market opportunities duration here? Or assume applyMarketEvent modifies price factor temporarily?
+                        // For now, assume price factor is updated. Need mechanism to reset opportunity boosts later.
+                        // TODO: Implement temporary boost reset mechanism if needed.
+                        break;
+                    case 'policy': // Keep scaling logic from previous step
+                         result = Events.applyPolicyEvent(event, this.balance);
                          let finalCostPolicy = 0;
-                         if (result.balanceChange < 0 && event.baseCost) { // Check if it's a cost event with baseCost
-                             const baseCostPolicy = Math.abs(event.baseCost); // Use baseCost from event creation
-                             const minCostPolicy = 500; // Minimum cost
-                             const maxCostPolicy = 6000; // Max cost cap increased slightly
-                             // Scaling factor based on balance, less aggressive curve
+                         if (result.balanceChange < 0 && event.baseCost) {
+                             const baseCostPolicy = Math.abs(event.baseCost);
+                             const minCostPolicy = 500; const maxCostPolicy = 6000;
                              const scaleFactorPolicy = Math.min(1.8, Math.max(0.7, 1 + (originalBalance - 150000) / 300000));
                              finalCostPolicy = Math.round(Math.min(maxCostPolicy, Math.max(minCostPolicy, baseCostPolicy * scaleFactorPolicy)));
-
-                             this.balance = originalBalance - finalCostPolicy; // Apply scaled cost
+                             this.balance = originalBalance - finalCostPolicy;
                              logMsg = `${event.message} Final Cost: ${formatCurrency(finalCostPolicy)}`;
-                         } else if (result.balanceChange > 0) { // Subsidy
-                             this.balance = originalBalance + result.balanceChange; // Apply subsidy
-                             logMsg = result.message; // Use message from event creation
-                         } else { // Water restriction etc. (no direct balance change)
-                              this.balance = result.newBalance; // Should be originalBalance
+                         } else if (result.balanceChange > 0) {
+                             this.balance = originalBalance + result.balanceChange;
+                             logMsg = result.message;
+                         } else {
+                              this.balance = result.newBalance;
                               logMsg = result.message;
                          }
-
                          if (logLvl <= 1 && (result.balanceChange !== 0 || finalCostPolicy > 0)) {
                              logMsg += ` (New Balance: ${formatCurrency(this.balance)})`;
                          }
                         break;
-
-                    case 'technology':
-                         result = Events.applyTechnologyEvent(event, this.balance, this.researchedTechs); // Get base change
+                    case 'technology': // Keep scaling logic from previous step
+                         result = Events.applyTechnologyEvent(event, this.balance, this.researchedTechs);
                          let finalCostTech = 0;
                          if (event.subType === 'technology_setback' && event.amount) {
-                              const baseCostTech = event.amount; // Base amount from event creation
-                              const minCostTech = 800; // Lower min cost
-                              const maxCostTech = 6000; // Lower max cost
-                              const scaleFactorTech = Math.min(1.6, Math.max(0.6, 1 + (originalBalance - 180000) / 250000)); // Adjusted scaling
+                              const baseCostTech = event.amount;
+                              const minCostTech = 800; const maxCostTech = 6000;
+                              const scaleFactorTech = Math.min(1.6, Math.max(0.6, 1 + (originalBalance - 180000) / 250000));
                               finalCostTech = Math.round(Math.min(maxCostTech, Math.max(minCostTech, baseCostTech * scaleFactorTech)));
-
-                              this.balance = originalBalance - finalCostTech; // Apply scaled cost
+                              this.balance = originalBalance - finalCostTech;
                               logMsg = `Technology setback! Equipment malfunction repair cost: ${formatCurrency(finalCostTech)}.`;
                          } else if (event.subType === 'innovation_grant' && event.amount) {
-                              this.balance = originalBalance + event.amount; // Apply grant
+                              this.balance = originalBalance + event.amount;
                               logMsg = result.message;
-                         } else { // research_breakthrough
-                             this.balance = result.newBalance; // No change expected
+                         } else {
+                             this.balance = result.newBalance;
                              logMsg = result.message;
                          }
-
                          if (logLvl <= 1) {
                              if(event.subType === 'innovation_grant' && event.amount > 0) logMsg += ` (+${formatCurrency(event.amount)})`;
                              if(event.subType === 'technology_setback') logMsg += ` (New Balance: ${formatCurrency(this.balance)})`;
                          }
                         break;
 
-                    default:
-                         this.logger.log(`Unknown event type processed: ${event.type}`, 0);
+                    default: // This should NOT be hit for known event types now
+                         this.logger.log(`Unknown event type processed: ${event.type}`, 0); // Keep as ERROR level
                          logMsg = null;
                  }
 
-                 // Log the final result message (same logic)
-                 // ...
+                 // Log the final result message
+                 if (logMsg) {
+                     this.addEvent(logMsg, event.isAlert);
+                     this.logger.log(`Event Result: ${logMsg}`, logLvl);
+                 }
 
-                 // Handle event continuation (same logic)
-                 // ...
+                 // Handle event continuation
+                 if (continueEvent) {
+                     this.pendingEvents.push(continueEvent);
+                     this.logger.log(`-- Event ${event.type} continues tomorrow (Day ${continueEvent.day}), duration left: ${continueEvent.duration}`, 2);
+                 }
             } catch (error) {
-                 this.logger.log(`ERROR applying event ${event.type}: ${error.message}`, 0);
-                 console.error("Error during event processing:", error);
+                 this.logger.log(`ERROR applying event ${event.type} (${event.subType || ''}): ${error.message}`, 0);
+                 console.error("Error during event processing:", event, error); // Log event object too
             }
         });
     }
