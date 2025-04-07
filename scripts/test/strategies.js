@@ -111,7 +111,27 @@ function updateMonocultureStrategy(game) {
         for (let col = 0; col < game.gridSize; col++) {
             const cell = game.grid[row][col];
 
-            if (cell.harvestReady) { if (game.harvestCell(row, col)) harvested++; }
+            // --- Start Harvest Block ---
+            if (cell.harvestReady) {
+                // *** DETAILED LOGGING ADDED HERE ***
+                const balanceBeforeHarvest = game.balance;
+                const cellYieldPotential = cell.expectedYield; // Log potential
+                const marketFactor = game.marketPrices[cell.crop.id] || 1.0;
+                game.logger.log(`Attempting harvest: (${row},${col}), Crop: ${cell.crop.name}, Expected Yield: ${cellYieldPotential.toFixed(1)}%, Mkt Factor: ${marketFactor.toFixed(2)}`, 3); // Use VERBOSE (3) for attempt
+
+                if (game.harvestCell(row, col)) {
+                    harvested++;
+                    const income = game.balance - balanceBeforeHarvest;
+                    // Use INFO level (1) for this critical debug log for now to ensure visibility
+                    game.logger.log(`HARVEST SUCCESS: (${row},${col}) -> Income: ${formatCurrency(income)}. New Bal: ${formatCurrency(game.balance)}`, 1);
+                } else {
+                    // Also log failure at INFO level for debugging
+                    game.logger.log(`HARVEST FAILED: (${row},${col})`, 1);
+                }
+                // --- End Detailed Logging ---
+            }
+            // --- End Harvest Block ---
+
             // Use else-if to avoid planting immediately after harvest in the same tick if harvest resets the cell
             else if (cell.crop.id === 'empty') {
                 if (game.balance >= plantCost) { if (game.plantCrop(row, col, cropId)) planted++; }
@@ -156,7 +176,28 @@ function updateDiverseCropsStrategy(game) {
      for (let row = 0; row < game.gridSize; row++) {
         for (let col = 0; col < game.gridSize; col++) {
             const cell = game.grid[row][col];
-            if (cell.harvestReady) { if (game.harvestCell(row, col)) harvested++; }
+
+            // --- Start Harvest Block ---
+            if (cell.harvestReady) {
+                 // *** DETAILED LOGGING ADDED HERE ***
+                const balanceBeforeHarvest = game.balance;
+                const cellYieldPotential = cell.expectedYield; // Log potential
+                const marketFactor = game.marketPrices[cell.crop.id] || 1.0;
+                game.logger.log(`Attempting harvest: (${row},${col}), Crop: ${cell.crop.name}, Expected Yield: ${cellYieldPotential.toFixed(1)}%, Mkt Factor: ${marketFactor.toFixed(2)}`, 3); // Use VERBOSE (3) for attempt
+
+                if (game.harvestCell(row, col)) {
+                    harvested++;
+                    const income = game.balance - balanceBeforeHarvest;
+                    // Use INFO level (1) for this critical debug log for now to ensure visibility
+                    game.logger.log(`HARVEST SUCCESS: (${row},${col}) -> Income: ${formatCurrency(income)}. New Bal: ${formatCurrency(game.balance)}`, 1);
+                } else {
+                    // Also log failure at INFO level for debugging
+                    game.logger.log(`Harvest FAILED: (${row},${col})`, 1);
+                }
+                 // --- End Detailed Logging ---
+            }
+             // --- End Harvest Block ---
+
             else if (cell.crop.id === 'empty') {
                 const cropIndex = (row * 3 + col * 5 + Math.floor(game.day / 10)) % cropIds.length; // Slightly different planting pattern
                 const cropId = cropIds[cropIndex];
