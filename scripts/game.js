@@ -14,7 +14,7 @@ import * as Events from './events.js';
 
 // --- Constants ---
 // ADJUSTED: Keep interest rate low
-const ANNUAL_INTEREST_RATE = 0.01; // Keep low
+const ANNUAL_INTEREST_RATE = 0.01;
 const SUSTAINABILITY_THRESHOLD_LOW = 35;
 const SUSTAINABILITY_THRESHOLD_MED = 60;
 const SUSTAINABILITY_THRESHOLD_HIGH = 75;
@@ -22,14 +22,13 @@ const SUSTAINABILITY_SUBSIDY_BASE_LOW = 3000;
 const SUSTAINABILITY_SUBSIDY_BASE_MED = 6000;
 const SUSTAINABILITY_SUBSIDY_BASE_HIGH = 12000;
 
-const INITIAL_BALANCE = 225000; // Keep same starting
-// ADJUSTED: Make planting very cheap initially
-const PLANTING_COST_FACTOR = 0.10; // Was 0.15
-// ADJUSTED: Minimal overhead
-const DAILY_OVERHEAD_COST = 2; // Was 3
+const INITIAL_BALANCE = 225000;
+const PLANTING_COST_FACTOR = 0.10; // Keep planting cheap
+const DAILY_OVERHEAD_COST = 2; // Keep overhead minimal
 
-const IRRIGATION_COST = 100; // Keep low
-const FERTILIZE_COST = 150; // Keep low
+// ADJUSTED: Make actions MUCH cheaper
+const IRRIGATION_COST = 20; // Was 100
+const FERTILIZE_COST = 30; // Was 150
 // --- End Constants ---
 
 const DAYS_IN_YEAR = 360; // Define for clarity if using seasons of 90 days
