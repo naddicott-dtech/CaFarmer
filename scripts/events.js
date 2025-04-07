@@ -5,12 +5,14 @@
  * market fluctuations, policy changes, and technology events.
  */
 
-import { crops } from './crops.js'; // Assuming crops.js is in the parent directory
+import { crops } from './crops.js';
+import { formatCurrency } from './utils.js'; // Import for formatting messages
 
 // --- Event Generation ---
 
 export function generateRandomEvent(farmState) {
-    if (Math.random() < 0.5) return null; // 50% chance no event
+    // Base chance slightly higher
+    if (Math.random() < 0.45) return null; // 55% chance event occurs (was 50%)
 
     const eventTypes = [
         { type: 'weather', probability: 0.4 },
@@ -31,19 +33,24 @@ export function generateRandomEvent(farmState) {
         }
     }
 
-    // No early game suppression logic in this bug-fix only version
-    const isEarlyGame = false; // Keep suppression off for now
+    // Pass farmState for context (year, balance, etc.)
+    const isEarlyGame = farmState.year <= 2;
 
     switch (selectedType) {
         case 'weather':
+            // Weather events are generally okay early on
             return scheduleWeatherEvent(farmState.day, farmState.climate, farmState.season);
         case 'market':
+            // Market events are okay early on
             return scheduleMarketEvent(farmState.day);
         case 'policy':
-            return schedulePolicyEvent(farmState.day, farmState.farmHealth, null, isEarlyGame);
+             // Pass farmState for potential scaling based on year/balance later if needed
+             return schedulePolicyEvent(farmState.day, farmState.farmHealth, null, isEarlyGame); // Pass early game flag
         case 'technology':
-            return generateTechnologyEvent(farmState.day, farmState, isEarlyGame);
+             // Pass farmState for grant calculation and potential scaling/suppression
+             return generateTechnologyEvent(farmState.day, farmState, isEarlyGame); // Pass early game flag
         default:
+            // Fallback just in case
             return scheduleWeatherEvent(farmState.day, farmState.climate, farmState.season);
     }
 }
@@ -57,7 +64,7 @@ function scheduleWeatherEvent(day, climate, season) {
     ];
 
     const totalProbability = eventTypes.reduce((sum, type) => sum + type.probability, 0);
-    if (totalProbability <= 0) return scheduleRain(day + 5);
+    if (totalProbability <= 0) return scheduleRain(day + 5); // Fallback
 
     const normalizedTypes = eventTypes.map(type => ({ ...type, probability: type.probability / totalProbability }));
 
@@ -73,7 +80,8 @@ function scheduleWeatherEvent(day, climate, season) {
         }
     }
 
-    const eventDay = day + Math.floor(Math.random() * 20) + 5;
+    // Schedule event slightly sooner on average
+    const eventDay = day + Math.floor(Math.random() * 15) + 3; // Was up to 20 days + 5
 
     switch (selectedType) {
         case 'rain': return scheduleRain(eventDay);
@@ -93,7 +101,9 @@ function scheduleMarketEvent(day) {
         cumulativeProbability += type.probability;
         if (roll < cumulativeProbability) { selectedType = type.id; break; }
     }
-    const eventDay = day + Math.floor(Math.random() * 15) + 5;
+    // Schedule event slightly sooner on average
+    const eventDay = day + Math.floor(Math.random() * 10) + 3; // Was up to 15 days + 5
+
     switch (selectedType) {
         case 'price_increase': return createMarketEvent(eventDay, 'increase');
         case 'price_decrease': return createMarketEvent(eventDay, 'decrease');
@@ -102,7 +112,7 @@ function scheduleMarketEvent(day) {
     }
 }
 
-export function schedulePolicyEvent(day, farmHealth, policyType = null, suppressCostly = false) {
+export function schedulePolicyEvent(day, farmHealth, policyType = null, isEarlyGame = false) { // Added isEarlyGame flag
     const eventTypes = [ { id: 'water_restriction', probability: 0.4 }, { id: 'environmental_subsidy', probability: 0.3 }, { id: 'new_regulations', probability: 0.3 }];
     if (!policyType) {
         const roll = Math.random();
@@ -110,56 +120,82 @@ export function schedulePolicyEvent(day, farmHealth, policyType = null, suppress
         policyType = eventTypes[0].id;
         for (const type of eventTypes) { cumulativeProbability += type.probability; if (roll < cumulativeProbability) { policyType = type.id; break; } }
     }
-    // Simplified suppression check (kept off in bug-fix)
-    // if (suppressCostly && (policyType === 'new_regulations' || policyType === 'water_restriction')) {
-    //      if (Math.random() < 0.5) { console.log("Switching early costly policy event to subsidy."); policyType = 'environmental_subsidy'; }
-    // }
-    const eventDay = day + Math.floor(Math.random() * 20) + 10;
-    return generatePolicyEvent(eventDay, farmHealth, policyType);
+
+    // ADJUSTMENT: Slightly reduce chance of costly regulations early on
+    if (isEarlyGame && policyType === 'new_regulations') {
+         if (Math.random() < 0.4) { // 40% chance to switch costly early event
+             console.log("[Event Balancing] Switching early costly policy event to subsidy."); // Debug log
+             policyType = 'environmental_subsidy';
+         }
+    }
+    // Schedule event slightly sooner on average
+    const eventDay = day + Math.floor(Math.random() * 15) + 5; // Was up to 20 days + 10
+
+    return generatePolicyEvent(eventDay, farmHealth, policyType); // Generate based on potentially modified type
 }
 
-export function generateTechnologyEvent(day, farmState, suppressCostly = false) {
+export function generateTechnologyEvent(day, farmState, isEarlyGame = false) { // Added isEarlyGame flag
     const eventTypes = [ { id: 'innovation_grant', probability: 0.5 }, { id: 'research_breakthrough', probability: 0.3 }, { id: 'technology_setback', probability: 0.2 } ];
     const roll = Math.random();
     let cumulativeProbability = 0;
     let selectedType = eventTypes[0].id;
     for (const type of eventTypes) { cumulativeProbability += type.probability; if (roll < cumulativeProbability) { selectedType = type.id; break; } }
-    // Simplified suppression check
-    // if (suppressCostly && selectedType === 'technology_setback') {
-    //      if (Math.random() < 0.5) { console.log("Switching early tech setback to grant."); selectedType = 'innovation_grant'; }
-    // }
-    const eventDay = day + Math.floor(Math.random() * 30) + 5;
+
+    // ADJUSTMENT: Reduce chance of setback early, increase chance of grant
+    if (isEarlyGame) {
+         if (selectedType === 'technology_setback' && Math.random() < 0.6) { // 60% chance to avoid early setback
+             console.log("[Event Balancing] Switching early tech setback to grant."); // Debug log
+             selectedType = 'innovation_grant';
+         } else if (selectedType !== 'innovation_grant' && Math.random() < 0.1) { // 10% bonus chance for early grant
+             selectedType = 'innovation_grant';
+         }
+    }
+     // Schedule event slightly sooner on average
+    const eventDay = day + Math.floor(Math.random() * 20) + 5; // Was up to 30 days + 5
+
     switch (selectedType) {
-        case 'innovation_grant': return createInnovationGrantEvent(eventDay, farmState);
+        case 'innovation_grant': return createInnovationGrantEvent(eventDay, farmState, isEarlyGame); // Pass flag
         case 'research_breakthrough': return createResearchBreakthroughEvent(eventDay);
         case 'technology_setback': return createTechnologySetbackEvent(eventDay);
-        default: return createInnovationGrantEvent(eventDay, farmState);
+        default: return createInnovationGrantEvent(eventDay, farmState, isEarlyGame);
     }
 }
 
-// --- Event Creation Helpers --- (No changes from Response #16 needed here)
-function createInnovationGrantEvent(day, farmState) { /* ... as in Response #16 ... */
+// --- Event Creation Helpers ---
+function createInnovationGrantEvent(day, farmState, isEarlyGame) { // Added flag
     const techCount = farmState?.researchedTechs?.length || 0;
     let grantAmount = 0;
     let message = '';
+    // ADJUSTMENT: Slightly higher base grant and better chance early
+    const earlyGrantChance = isEarlyGame ? 0.35 : 0.2; // Higher chance in first 2 years
+    const earlyGrantAmount = 3000; // Increased base amount
+
     if (techCount === 0) {
-        if (Math.random() < 0.2) { grantAmount = 2000; message = `You received a small $${grantAmount} starter grant for farm innovation. Consider investing in research.`; }
-        else { message = 'Your farm was not selected for an innovation grant due to lack of technological adoption.'; }
-    } else if (techCount <= 1) { grantAmount = 5000; message = `You received a $${grantAmount} innovation grant for your initial research efforts.`; }
-    else if (techCount <= 3) { grantAmount = 10000; message = `You received a $${grantAmount} innovation grant for farm research!`; }
-    else if (techCount <= 5) { grantAmount = 15000; message = `You received a $${grantAmount} substantial innovation grant for your technological leadership!`; }
-    else { grantAmount = 20000 + (techCount - 6) * 2000; message = `You received a major $${grantAmount} innovation grant for being at the cutting edge of agricultural technology!`; }
+        if (Math.random() < earlyGrantChance) {
+            grantAmount = earlyGrantAmount;
+            message = `You received a small ${formatCurrency(grantAmount)} starter grant for farm innovation. Consider investing in research.`;
+        } else {
+            message = 'Your farm was not selected for an innovation grant due to lack of technological adoption.';
+        }
+    } else if (techCount <= 1) { grantAmount = 5000; message = `You received a ${formatCurrency(grantAmount)} innovation grant for your initial research efforts.`; }
+    else if (techCount <= 3) { grantAmount = 10000; message = `You received a ${formatCurrency(grantAmount)} innovation grant for farm research!`; }
+    else if (techCount <= 5) { grantAmount = 15000; message = `You received a ${formatCurrency(grantAmount)} substantial innovation grant for your technological leadership!`; }
+    else { grantAmount = 20000 + (techCount - 6) * 2000; message = `You received a major ${formatCurrency(grantAmount)} innovation grant for being at the cutting edge of agricultural technology!`; }
     return { type: 'technology', subType: 'innovation_grant', day, amount: grantAmount, message, isAlert: grantAmount > 0 };
  }
-function createResearchBreakthroughEvent(day) { /* ... as in Response #16 ... */
+
+function createResearchBreakthroughEvent(day) {
     const duration = Math.floor(Math.random() * 16) + 15;
     return { type: 'technology', subType: 'research_breakthrough', day, duration, discount: 0.3, message: `Research breakthrough! Technology costs reduced by 30% for the next ${duration} days.`, isAlert: true };
 }
-function createTechnologySetbackEvent(day) { /* ... as in Response #16 ... */
-    const setbackAmount = Math.floor(Math.random() * 3000) + 2000;
-    return { type: 'technology', subType: 'technology_setback', day, amount: setbackAmount, message: `Technology setback! Equipment malfunction has cost you $${setbackAmount} in repairs.`, isAlert: true };
+
+function createTechnologySetbackEvent(day) {
+    // Base amount remains, scaling happens in game.js
+    const setbackAmountBase = Math.floor(Math.random() * 3000) + 2000;
+    return { type: 'technology', subType: 'technology_setback', day, amount: setbackAmountBase, message: `Technology setback! Equipment malfunction reported.`, isAlert: true };
 }
-export function scheduleRain(day) { /* ... as in Response #16 ... */
+
+export function scheduleRain(day) {
     const intensity = Math.random();
     let severity, message, waterIncrease;
     if (intensity < 0.3) { severity = 'light'; message = 'Light rainfall increased water levels slightly.'; waterIncrease = 5 + Math.floor(Math.random() * 5); }
@@ -168,7 +204,8 @@ export function scheduleRain(day) { /* ... as in Response #16 ... */
     const forecastMessage = 'Weather forecast: ' + severity + ' rain expected soon.';
     return { type: 'rain', day, severity, waterIncrease, message, forecastMessage, isAlert: severity === 'heavy' };
 }
-export function scheduleDrought(day, baseProbability) { /* ... as in Response #16 ... */
+
+export function scheduleDrought(day, baseProbability) {
     const severityRoll = Math.random();
     let severity, duration, baseMessage;
     if (severityRoll < 0.6) { severity = 'mild'; duration = Math.floor(Math.random() * 3) + 3; baseMessage = 'Drought conditions affecting your farm.'; }
@@ -179,16 +216,19 @@ export function scheduleDrought(day, baseProbability) { /* ... as in Response #1
     const forecastMessage = 'Weather forecast: Dry conditions expected. Potential drought warning.';
     return { type: 'drought', day, severity, duration, message: baseMessage, forecastMessage, isAlert: severity !== 'mild' };
 }
-export function scheduleHeatwave(day) { /* ... as in Response #16 ... */
+
+export function scheduleHeatwave(day) {
     const duration = Math.floor(Math.random() * 4) + 2;
     const forecastMessage = 'Weather forecast: Extreme heat expected in the coming days.';
     return { type: 'heatwave', day, duration, message: 'Heatwave conditions! Crops experiencing heat stress.', forecastMessage, isAlert: true };
 }
-export function scheduleFrost(day) { /* ... as in Response #16 ... */
+
+export function scheduleFrost(day) {
     const forecastMessage = 'Weather forecast: Temperatures expected to drop below freezing overnight.';
     return { type: 'frost', day, message: 'Frost warning! Young plants are vulnerable.', forecastMessage, isAlert: true };
 }
-function createMarketEvent(day, direction) { /* ... as in Response #16 ... */
+
+function createMarketEvent(day, direction) {
     const validCrops = crops.filter(c => c.id !== 'empty');
     if (validCrops.length === 0) return null;
     const cropIndex = Math.floor(Math.random() * validCrops.length);
@@ -198,7 +238,8 @@ function createMarketEvent(day, direction) { /* ... as in Response #16 ... */
     else { changePercent = 10 + Math.floor(Math.random() * 30); message = `Market update: ${targetCrop.name} prices have fallen by ${changePercent}%.`; forecast = `Market news: Market surplus expected for ${targetCrop.name}.`; isAlert = true; }
     return { type: 'market', day, direction, cropId: targetCrop.id, changePercent, message, forecastMessage: forecast, isAlert };
 }
-function createMarketOpportunityEvent(day) { /* ... as in Response #16 ... */
+
+function createMarketOpportunityEvent(day) {
     const validCrops = crops.filter(c => c.id !== 'empty');
     if (validCrops.length === 0) return null;
     const cropIndex = Math.floor(Math.random() * validCrops.length);
@@ -209,20 +250,27 @@ function createMarketOpportunityEvent(day) { /* ... as in Response #16 ... */
     const forecast = `Market news: Special demand expected for ${targetCrop.name}.`;
     return { type: 'market', day, direction: 'opportunity', cropId: targetCrop.id, changePercent: bonusPercent, duration, message, forecastMessage: forecast, isAlert: true };
 }
-export function generatePolicyEvent(day, farmHealth, policyType) { /* ... as in Response #16 ... */
+
+export function generatePolicyEvent(day, farmHealth, policyType) {
     const subsidyAmount = farmHealth > 60 ? 5000 : (farmHealth > 40 ? 3000 : 0);
-    const complianceCost = 3000;
+    // Base cost - scaling happens in game.js apply
+    const complianceCostBase = 3000;
     switch (policyType) {
-        case 'water_restriction': return { type: 'policy', day, policyType, message: 'Water restriction policy enacted. Irrigation costs increased by 50%.', forecastMessage: 'Policy update: Water restrictions being considered.', isAlert: true, irrigationCostIncrease: 0.5, balanceChange: 0 };
-        case 'environmental_subsidy': return subsidyAmount > 0 ? { type: 'policy', day, policyType, message: `You received a $${subsidyAmount} environmental subsidy!`, forecastMessage: 'Policy update: Environmental subsidies being discussed.', isAlert: false, balanceChange: subsidyAmount } : null;
-        case 'new_regulations': return { type: 'policy', day, policyType, message: `New regulations require compliance upgrades costing $${complianceCost}.`, forecastMessage: 'Policy update: New farming regulations proposed.', isAlert: true, balanceChange: -complianceCost };
+        case 'water_restriction': return { type: 'policy', policyType, day, message: 'Water restriction policy enacted. Irrigation costs increased by 50%.', forecastMessage: 'Policy update: Water restrictions being considered.', isAlert: true, irrigationCostIncrease: 0.5, balanceChange: 0 };
+        case 'environmental_subsidy': return subsidyAmount > 0 ? { type: 'policy', policyType, day, message: `You received a ${formatCurrency(subsidyAmount)} environmental subsidy!`, forecastMessage: 'Policy update: Environmental subsidies being discussed.', isAlert: false, balanceChange: subsidyAmount } : null;
+        // Pass the *base* cost, game.js will scale it
+        case 'new_regulations': return { type: 'policy', policyType, day, message: `New regulations require compliance upgrades.`, baseCost: complianceCostBase, forecastMessage: 'Policy update: New farming regulations proposed.', isAlert: true, balanceChange: -complianceCostBase }; // Pass negative balanceChange representing base cost
         default: return null;
     }
 }
 
-// --- Event Application Functions ---
 
-export function applyRainEvent(event, grid, waterReserve, techs = []) { /* ... as in Response #16 ... */
+// --- Event Application Functions ---
+// NOTE: No changes needed in the 'apply' functions here compared to the previously provided versions.
+// Monetary scaling is handled in game.js processPendingEvents.
+// These functions return the calculated changes/state, which game.js then applies.
+
+export function applyRainEvent(event, grid, waterReserve, techs = []) {
     let newWaterReserve = Math.min(100, waterReserve + event.waterIncrease);
     let soilDamage = 0;
     if (event.severity === 'heavy') soilDamage = 1 + Math.random() * 2;
@@ -233,7 +281,7 @@ export function applyRainEvent(event, grid, waterReserve, techs = []) { /* ... a
             if (soilDamage > 0) {
                 let protection = 1.0;
                 if (techs.includes('no_till_farming')) protection *= 0.5;
-                if (techs.includes('cover_crop')) protection *= 0.7;
+                // Add other protections if implemented (e.g., cover_crop tech)
                 cell.applyEnvironmentalEffect('soil-damage', soilDamage, protection);
             }
         }
@@ -241,28 +289,23 @@ export function applyRainEvent(event, grid, waterReserve, techs = []) { /* ... a
     return { waterReserve: newWaterReserve, message: event.message };
 }
 
-// *** UPDATED applyDroughtEvent from Response #18 (includes base reserve loss) ***
 export function applyDroughtEvent(event, grid, waterReserve, techs = []) {
     if (event.duration <= 0) return { skipped: true };
-
     let newWaterReserve = waterReserve;
     const severityFactor = event.severity === 'mild' ? 1 : (event.severity === 'moderate' ? 2 : 3);
     const dailyFarmReserveLoss = 0.5 * severityFactor; // Base loss from reserve
     const dailyCellWaterLoss = 2 * severityFactor; // Higher loss within cell
-
     let droughtProtection = 1.0;
     if (techs.includes('drought_resistant')) droughtProtection *= 0.7;
     if (techs.includes('silvopasture')) droughtProtection *= 0.8;
     if (techs.includes('ai_irrigation')) droughtProtection *= 0.95;
-
     newWaterReserve = Math.max(0, newWaterReserve - (dailyFarmReserveLoss * droughtProtection));
-
     for (let row = 0; row < grid.length; row++) {
         for (let col = 0; col < grid[row].length; col++) {
             const cell = grid[row][col];
             if (cell.crop.id !== 'empty') {
                 cell.applyEnvironmentalEffect('water-decrease', dailyCellWaterLoss, droughtProtection);
-                if (severityFactor > 1) { // Moderate or Severe
+                if (severityFactor > 1) {
                     const yieldDamageMagnitude = 1.5 * (severityFactor - 1);
                     cell.applyEnvironmentalEffect('yield-damage', yieldDamageMagnitude, droughtProtection);
                 }
@@ -282,27 +325,24 @@ export function applyDroughtEvent(event, grid, waterReserve, techs = []) {
     return { waterReserve: newWaterReserve, message, skipped: false, continueEvent, nextDuration, severity: event.severity };
 }
 
-// *** UPDATED applyHeatwaveEvent from Response #18 (includes heat yield damage) ***
 export function applyHeatwaveEvent(event, grid, waterReserve, techs = []) {
     if (event.duration <= 0) return { skipped: true };
-
     let newWaterReserve = waterReserve;
-    const dailyWaterLoss = 2;
-
+    const dailyWaterLoss = 2; // Base farm reserve loss per day
     let heatProtection = 1.0;
     if (techs.includes('greenhouse')) heatProtection = 0.6;
     if (techs.includes('silvopasture')) heatProtection *= 0.85;
-
     newWaterReserve = Math.max(0, newWaterReserve - (dailyWaterLoss * heatProtection));
-
     for (let row = 0; row < grid.length; row++) {
         for (let col = 0; col < grid[row].length; col++) {
             const cell = grid[row][col];
             if (cell.crop.id !== 'empty') {
+                // Apply increased water use within cell
                 cell.applyEnvironmentalEffect('water-decrease', dailyWaterLoss * 1.5, heatProtection);
-                const crop = cell.crop;
+                // Apply yield damage based on heat sensitivity
+                const crop = cell.crop; // Assumes cell.crop has full data
                 const heatSensitivityFactor = crop.heatSensitivity || 1.0;
-                const heatDamageMagnitude = 2.0;
+                const heatDamageMagnitude = 2.0; // Base damage factor
                 cell.applyEnvironmentalEffect('yield-damage', heatDamageMagnitude * heatSensitivityFactor, heatProtection);
             }
         }
@@ -316,16 +356,16 @@ export function applyHeatwaveEvent(event, grid, waterReserve, techs = []) {
     return { waterReserve: newWaterReserve, message, skipped: false, continueEvent, nextDuration };
 }
 
-
-export function applyFrostEvent(event, grid, techs = []) { /* ... as in Response #16 ... */
+export function applyFrostEvent(event, grid, techs = []) {
     let frostProtection = 1.0;
     if (techs.includes('greenhouse')) frostProtection = 0.4;
     for (let row = 0; row < grid.length; row++) {
         for (let col = 0; col < grid[row].length; col++) {
             const cell = grid[row][col];
             if (cell.crop.id !== 'empty') {
-                const growthProtectionFactor = Math.min(1, cell.growthProgress / 50);
-                const frostDamageBase = 5.0;
+                // Young plants are more vulnerable
+                const growthProtectionFactor = Math.min(1, cell.growthProgress / 50); // More protection as it grows
+                const frostDamageBase = 5.0; // Base yield damage %
                 const effectiveDamage = frostDamageBase * (1 - growthProtectionFactor);
                 cell.applyEnvironmentalEffect('yield-damage', effectiveDamage, frostProtection);
             }
@@ -335,31 +375,46 @@ export function applyFrostEvent(event, grid, techs = []) { /* ... as in Response
     return { message };
 }
 
-export function applyMarketEvent(event, marketPrices, allCropsData) { /* ... as in Response #16 ... */
+export function applyMarketEvent(event, marketPrices, allCropsData) {
     const newMarketPrices = { ...marketPrices };
     const cropId = event.cropId;
     const currentPriceFactor = newMarketPrices[cropId] || 1.0;
     let message = event.message || "Market conditions changed.";
-    if (event.direction === 'increase') newMarketPrices[cropId] = Math.min(2.5, currentPriceFactor * (1 + (event.changePercent / 100)));
-    else if (event.direction === 'decrease') newMarketPrices[cropId] = Math.max(0.4, currentPriceFactor * (1 - (event.changePercent / 100)));
-    else if (event.direction === 'opportunity') newMarketPrices[cropId] = Math.min(3.0, currentPriceFactor * (1 + (event.changePercent / 100)));
-     if (!message.includes('%')) { const newPricePercent = Math.round(newMarketPrices[cropId] * 100); message += ` ${cropId} price factor now ${newPricePercent}%.`; }
+    if (event.direction === 'increase') {
+        newMarketPrices[cropId] = Math.min(2.5, currentPriceFactor * (1 + (event.changePercent / 100)));
+    } else if (event.direction === 'decrease') {
+        newMarketPrices[cropId] = Math.max(0.4, currentPriceFactor * (1 - (event.changePercent / 100)));
+    } else if (event.direction === 'opportunity') {
+        // Opportunities apply a temporary boost - maybe handle this differently?
+        // For now, treat like increase but with duration. Duration needs handling in game.js or here.
+        // Let's assume game.js handles the temporary nature for now.
+        newMarketPrices[cropId] = Math.min(3.0, currentPriceFactor * (1 + (event.changePercent / 100)));
+    }
+     // Update message if not fully descriptive
+     if (!message.includes('%')) {
+         const newPricePercent = Math.round(newMarketPrices[cropId] * 100);
+         message += ` ${cropId} price factor now ${newPricePercent}%.`;
+     }
     return { marketPrices: newMarketPrices, message };
 }
 
-export function applyPolicyEvent(event, balance) { /* ... as in Response #16 ... */
-    const newBalance = balance + (event.balanceChange || 0);
-    // TODO: Implement irrigationCostIncrease effect
-    return { newBalance, message: event.message, balanceChange: event.balanceChange || 0 };
+// Returns potential changes; game.js applies them and scales costs
+export function applyPolicyEvent(event, balance) {
+    // Returns the *base* balance change; scaling happens in game.js
+    return { newBalance: balance + (event.balanceChange || 0), message: event.message, balanceChange: event.balanceChange || 0 };
 }
 
-export function applyTechnologyEvent(event, balance, researchedTechs = []) { /* ... as in Response #16 ... */
+// Returns potential changes; game.js applies them and scales costs
+export function applyTechnologyEvent(event, balance, researchedTechs = []) {
     let newBalance = balance;
     let message = event.message || "Technology event occurred.";
+    // Return base amount change for grant/setback; game.js applies/scales
     switch (event.subType) {
         case 'innovation_grant': newBalance += event.amount; break;
-        case 'research_breakthrough': /* TODO: Track effect */ break;
-        case 'technology_setback': newBalance -= event.amount; break;
+        case 'research_breakthrough': /* Effect handled elsewhere */ break;
+        case 'technology_setback': newBalance -= event.amount; break; // Pass base amount back
     }
-    return { newBalance, message };
+    // Return base amount for grant/setback cost
+    const balanceChange = event.subType === 'innovation_grant' ? event.amount : (event.subType === 'technology_setback' ? -event.amount : 0);
+    return { newBalance, message, balanceChange };
 }
