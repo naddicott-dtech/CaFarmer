@@ -5,13 +5,13 @@
  * Each cell tracks its crop, growth state, environmental conditions, and crop history.
  */
 
-import { crops, getCropById } from './crops.js'; // Ensure getCropById is imported if needed here, or rely on game passing full crop data
+import { crops, getCropById } from './crops.js';
 
 // Define constants for empty plot soil dynamics
-// ADJUSTMENT: Slightly reduce base degradation, slightly increase regen
-const EMPTY_PLOT_SOIL_DEGRADATION_DRY = 0.015; // Was 0.02
-const EMPTY_PLOT_SOIL_DEGRADATION_WET = 0.008; // Was 0.01 (less erosion when just wet)
-const EMPTY_PLOT_SOIL_REGEN_BASE = 0.008; // Was 0.005
+// ADJUSTMENT: Increase degradation, decrease regen significantly
+const EMPTY_PLOT_SOIL_DEGRADATION_DRY = 0.025; // Was 0.015 - Faster degradation when dry
+const EMPTY_PLOT_SOIL_DEGRADATION_WET = 0.012; // Was 0.008 - More erosion when wet
+const EMPTY_PLOT_SOIL_REGEN_BASE = 0.003; // Was 0.008 - Much lower passive regen
 
 // Cell class definition
 export class Cell {
@@ -111,116 +111,89 @@ export class Cell {
     }
 
     // Update cell for daily changes
-    update(waterReserve, techs) { // techs is an array of researched tech IDs
-
-        // Reset daily flags
-        this.irrigated = false; // Can irrigate again tomorrow
+    update(waterReserve, techs) {
+        this.irrigated = false; // Reset daily flag
 
         // --- Handle Empty Plot Soil Dynamics ---
         if (this.crop.id === 'empty') {
-            let soilChange = EMPTY_PLOT_SOIL_REGEN_BASE; // Start with base regeneration
+            let soilChange = EMPTY_PLOT_SOIL_REGEN_BASE; // Start with very low base regeneration
 
-            // Apply No-Till effect if present (enhances regen slightly)
+            // Tech effects on empty plots (No-Till reduces degradation)
+            let degradationMultiplier = 1.0;
             if (techs && techs.includes('no_till_farming')) {
-                 soilChange *= 1.2; // Small boost to regen with no-till
+                 degradationMultiplier = 0.4; // No-till significantly reduces degradation rates
+                 // soilChange *= 1.1; // Very minor boost to regen with no-till? Let's skip.
             }
 
-            // Degradation factors
-            if (waterReserve < 40 || this.waterLevel < 30) { // Dry conditions
-                 let dryDegradation = EMPTY_PLOT_SOIL_DEGRADATION_DRY;
-                 if (techs && techs.includes('no_till_farming')) dryDegradation *= 0.5; // No-till reduces dry degradation
-                 soilChange -= dryDegradation;
+            // Degradation factors (apply multiplier)
+            if (waterReserve < 35 || this.waterLevel < 25) { // Dry conditions threshold slightly lower
+                 soilChange -= (EMPTY_PLOT_SOIL_DEGRADATION_DRY * degradationMultiplier);
             }
-            if (this.waterLevel > 95) { // Wet conditions (erosion)
-                 let wetDegradation = EMPTY_PLOT_SOIL_DEGRADATION_WET;
-                 if (techs && techs.includes('no_till_farming')) wetDegradation *= 0.3; // No-till strongly reduces wet erosion
-                 soilChange -= wetDegradation;
+             // Apply wet degradation if very wet (e.g., after heavy rain event)
+             // Maybe check waterLevel > 98? For simplicity, check high waterReserve too
+            if (this.waterLevel > 98 || waterReserve > 95) {
+                 soilChange -= (EMPTY_PLOT_SOIL_DEGRADATION_WET * degradationMultiplier);
             }
 
+            // Ensure net change isn't overly positive without active input
+            soilChange = Math.min(0.01, soilChange); // Cap positive change
 
             this.soilHealth = Math.max(10, Math.min(100, this.soilHealth + soilChange)); // Apply change, clamp 10-100
-            this.waterLevel = Math.max(0, this.waterLevel - 0.05); // Slower passive water loss on empty plots
-            // Decay pest pressure slowly on empty plots
-            this.pestPressure = Math.max(0, this.pestPressure - 0.1);
+            this.waterLevel = Math.max(0, this.waterLevel - 0.1); // Slower passive water loss
+            this.pestPressure = Math.max(0, this.pestPressure - 0.1); // Slow pest decay
 
             return; // Stop update for empty plot
         }
 
-        // --- Handle Plot with Crop ---
+        // --- Handle Plot with Crop --- (Keep logic from previous balancing pass)
         this.daysSincePlanting++;
-
-        // Calculate growth progress
         const growthRate = this.calculateGrowthRate(waterReserve, techs);
         this.growthProgress += growthRate;
-        this.growthProgress = Math.min(100, this.growthProgress); // Ensure progress doesn't exceed 100 before harvest check
+        this.growthProgress = Math.min(100, this.growthProgress);
 
-        // Check if ready for harvest
         if (!this.harvestReady && this.growthProgress >= 100) {
             this.harvestReady = true;
-            // Don't return yet, apply daily effects even on harvest day
         }
 
-        // If already harvestReady, growth stops, but conditions still apply
         if (this.harvestReady) {
-            // Potential yield degradation if left unharvested?
-            // Example: Small daily yield loss if ready but not harvested
-            this.expectedYield = Math.max(0, this.expectedYield - 0.1);
+            this.expectedYield = Math.max(0, this.expectedYield - 0.1); // Slight decay if not harvested
         }
 
-        // Crop water consumption
-        const baseWaterUsePerDay = this.crop.waterUse; // Assuming waterUse is scaled appropriately (e.g., % points per day)
-        // Apply water efficiency tech
+        // Water consumption
+        const baseWaterUsePerDay = this.crop.waterUse || 1.0; // Ensure valid number
         let waterEfficiencyFactor = 1.0;
-        if (techs && techs.includes('drip_irrigation')) waterEfficiencyFactor *= 0.8; // Drip reduces use
-        if (techs && techs.includes('ai_irrigation')) waterEfficiencyFactor *= 0.9; // AI further reduces
-        if (techs && techs.includes('drought_resistant')) waterEfficiencyFactor *= 0.95; // Resistant varieties slightly more efficient
-
-        const actualWaterUse = baseWaterUsePerDay * waterEfficiencyFactor;
+        if (techs && techs.includes('drip_irrigation')) waterEfficiencyFactor *= 0.8;
+        if (techs && techs.includes('ai_irrigation')) waterEfficiencyFactor *= 0.9;
+        if (techs && techs.includes('drought_resistant')) waterEfficiencyFactor *= 0.95;
+        const actualWaterUse = Math.max(0.1, baseWaterUsePerDay * waterEfficiencyFactor); // Ensure minimum use
         this.waterLevel = Math.max(0, this.waterLevel - actualWaterUse);
 
-        // Water stress affects expected yield (if not yet ready for harvest)
+        // Water stress
         if (this.waterLevel < 30 && !this.harvestReady) {
-            const stressPenalty = 0.8 * (1 - (this.waterLevel / 30)); // Slightly less harsh penalty
+            const stressPenalty = 0.8 * (1 - (this.waterLevel / 30));
             let droughtResistanceFactor = 1.0;
-            if (techs && techs.includes('drought_resistant')) droughtResistanceFactor = 0.6; // Tech reduces penalty
+            if (techs && techs.includes('drought_resistant')) droughtResistanceFactor = 0.6;
             this.expectedYield = Math.max(10, this.expectedYield - (stressPenalty * droughtResistanceFactor));
         }
 
         // Soil degradation from farming
-        let soilDegradation = 0.08; // Reduced base daily degradation
-        if (this.consecutivePlantings > 0) {
-            soilDegradation *= (1 + (this.consecutivePlantings * 0.25)); // Reduced penalty scaling
-        }
-        if (this.pestPressure > 50) {
-            soilDegradation *= 1.15; // Reduced pest impact scaling
-        }
-        // Apply No-Till Farming tech effect
-        if (techs && techs.includes('no_till_farming')) {
-            soilDegradation *= 0.4; // Stronger reduction with no-till
-        } else {
-            // Increase degradation slightly without no-till?
-             soilDegradation *= 1.1;
-        }
+        let soilDegradation = 0.08;
+        if (this.consecutivePlantings > 0) soilDegradation *= (1 + (this.consecutivePlantings * 0.25));
+        if (this.pestPressure > 50) soilDegradation *= 1.15;
+        if (techs && techs.includes('no_till_farming')) soilDegradation *= 0.4;
+        else soilDegradation *= 1.1; // Slightly higher degradation without no-till
 
-        // Check for soil regen techs
+        // Soil regen from tech
         let soilRegen = 0;
-        if (techs && techs.includes('no_till_farming')) soilRegen += 0.01; // Small base regen from no-till
-        if (techs && techs.includes('silvopasture')) soilRegen += 0.01; // Regen from silvopasture
+        if (techs && techs.includes('no_till_farming')) soilRegen += 0.01;
+        if (techs && techs.includes('silvopasture')) soilRegen += 0.01;
 
-        // Apply net soil change
         this.soilHealth = Math.max(10, Math.min(100, this.soilHealth - soilDegradation + soilRegen));
 
-
         // Pest pressure dynamics
-        if (this.soilHealth < 40 && Math.random() < 0.015) { // Lower chance
-            this.pestPressure = Math.min(80, this.pestPressure + 1.5); // Slower increase
-        }
-        // Slow natural pest pressure decay if low
-        if (this.pestPressure > 0 && this.pestPressure < 30 && !this.fertilized /* Pests might like fertilizer? */ ) {
-             this.pestPressure = Math.max(0, this.pestPressure - 0.05); // Very slow decay
-        }
+        if (this.soilHealth < 40 && Math.random() < 0.015) this.pestPressure = Math.min(80, this.pestPressure + 1.5);
+        if (this.pestPressure > 0 && this.pestPressure < 30 && !this.fertilized) this.pestPressure = Math.max(0, this.pestPressure - 0.05);
 
-        // Return status if needed by caller (e.g., for UI)
         if (this.harvestReady) return 'harvest-ready';
     }
 
