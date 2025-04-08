@@ -251,7 +251,7 @@ export class Cell {
         const baseValue = this.crop.harvestValue || 0;
         const harvestValue = Math.round(baseValue * (finalYieldPercentage / 100) * marketPriceFactor);
 
-        // Result object
+        // Prepare result object (using the current this.crop before reset)
         const result = {
             cropName: this.crop.name,
             value: harvestValue,
@@ -259,36 +259,28 @@ export class Cell {
         };
 
         // --- Apply Post-Harvest Soil Impact ---
-        const harvestedCropId = this.crop.id;
-        const harvestedCrop = getCropById(harvestedCropId); // Use getter
-        const cropSoilImpact = harvestedCrop?.soilImpact || 0; // Use stored crop data
-        const monocropFactor = 1 + (this.consecutivePlantings * 0.15); // Reduced penalty scaling
-        // ADJUSTMENT: Reduce base harvest impact slightly
-        const harvestImpact = (4 + Math.abs(cropSoilImpact)) * monocropFactor; // Was 5 + ...
-
-        // Apply impact BEFORE resetting the cell state
-        this.soilHealth = Math.max(10, this.soilHealth - harvestImpact);
-
-        // --- Reset Cell State ---
-        const harvestedCropId = this.crop.id;
+        // Get data for the crop being harvested
+        const harvestedCropId = this.crop.id; // Get ID *before* resetting this.crop
         const harvestedCrop = getCropById(harvestedCropId); // Use getter
         const cropSoilImpact = harvestedCrop?.soilImpact || 0;
         const monocropFactor = 1 + (this.consecutivePlantings * 0.15);
         const harvestImpact = (4 + Math.abs(cropSoilImpact)) * monocropFactor;
 
+        // Apply impact to soil health
         this.soilHealth = Math.max(10, this.soilHealth - harvestImpact);
 
-        // *** CHANGE: Reset to empty using the getter for robustness ***
-        this.crop = getCropById('empty');
+        // --- Reset Cell State ---
+        // *** REMOVED DUPLICATE DECLARATIONS HERE ***
+        this.crop = getCropById('empty'); // Reset crop to empty
         this.growthProgress = 0;
         this.daysSincePlanting = 0;
         this.fertilized = false;
-        this.irrigated = false;
+        this.irrigated = false; // Reset daily flag too
         this.harvestReady = false;
         this.expectedYield = 0;
-        // Keep consecutivePlantings, pestPressure, cropHistory for next planting decision
+        // Keep consecutivePlantings, pestPressure, cropHistory
 
-        return result;
+        return result; // Return the calculated harvestData object
     }
 
     // Apply environmental effects (for events)
