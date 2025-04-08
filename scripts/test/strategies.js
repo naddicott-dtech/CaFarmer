@@ -45,29 +45,72 @@ export function setupTestStrategy(game, strategyId) {
 }
 
 // --- Initial Setup Functions --- (No changes needed here)
-function setupMonocultureInitial(game) { /* ... as in Response #16 ... */
+function setupMonocultureInitial(game) {
     const cropId = 'corn';
     game.logger.log(`Monoculture Initial: Planting ${cropId} everywhere.`, 2);
     let plantedCount = 0;
+    const cropToPlantData = getCropById(cropId); // Get data once
+    const plantCost = cropToPlantData ? Math.round(cropToPlantData.basePrice * game.plantingCostFactor) : Infinity;
+    console.log(`SETUP MONO: Calculated plant cost for ${cropId}: ${formatCurrency(plantCost)}`); // Log calculated cost
+
     for (let row = 0; row < game.gridSize; row++) {
-        for (let col = 0; col < game.gridSize; col++) { if (game.plantCrop(row, col, cropId)) plantedCount++; }
+        for (let col = 0; col < game.gridSize; col++) {
+            // *** DETAILED LOGGING ADDED HERE ***
+            const balanceBeforePlant = game.balance;
+            console.log(`SETUP MONO: Attempting plant (${row},${col}), Bal Before: ${formatCurrency(balanceBeforePlant)}, Need: ${formatCurrency(plantCost)}`);
+            const plantSuccess = game.plantCrop(row, col, cropId); // Call the game's planting function
+            console.log(`SETUP MONO: Planted (${row},${col}) -> Success: ${plantSuccess}, Bal After: ${formatCurrency(game.balance)}`);
+             // *** END DETAILED LOGGING ***
+
+            if (plantSuccess) {
+                plantedCount++;
+            } else {
+                // Add a warning if planting failed when expected to succeed
+                if (balanceBeforePlant >= plantCost && game.grid[row][col].crop.id === 'empty') {
+                    console.warn(`SETUP MONO: Planting failed at (${row},${col}) unexpectedly!`);
+                }
+            }
+        }
     }
-    game.logger.log(`Monoculture Initial: Planted ${plantedCount} ${cropId} plots. Initial Balance: $${game.balance.toLocaleString()}`, 1);
+    // Log the final count and balance
+    game.logger.log(`Monoculture Initial: Planted ${plantedCount} ${cropId} plots. Final Initial Balance: ${formatCurrency(game.balance)}`, 1);
 }
-function setupDiverseCropsInitial(game) { /* ... as in Response #16 ... */
+
+function setupDiverseCropsInitial(game) {
     game.logger.log(`Diverse Crops Initial: Planting various crops.`, 2);
     const cropIds = crops.filter(c => c.id !== 'empty').map(c => c.id);
     if (cropIds.length === 0) { game.logger.log("No crops defined (excluding empty)!", 0); return; }
-    let counts = {};
+
+    let counts = {}; // To track how many of each were actually planted
+
     for (let row = 0; row < game.gridSize; row++) {
         for (let col = 0; col < game.gridSize; col++) {
-            const cropIndex = (row + col) % cropIds.length;
+            const cropIndex = (row * 3 + col * 5 + Math.floor(game.day / 10)) % cropIds.length; // Use same pattern as strategy
             const cropId = cropIds[cropIndex];
-            if (game.plantCrop(row, col, cropId)) counts[cropId] = (counts[cropId] || 0) + 1;
+            const cropToPlantData = getCropById(cropId);
+            const plantCost = cropToPlantData ? Math.round(cropToPlantData.basePrice * game.plantingCostFactor) : Infinity;
+
+            // *** DETAILED LOGGING ADDED HERE ***
+            const balanceBeforePlantD = game.balance;
+            console.log(`SETUP DIVERSE: Attempting plant (${row},${col}) - ${cropId}, Bal Before: ${formatCurrency(balanceBeforePlantD)}, Need: ${formatCurrency(plantCost)}`);
+            const plantSuccessD = game.plantCrop(row, col, cropId); // Call the game's planting function
+            console.log(`SETUP DIVERSE: Planted (${row},${col}) -> Success: ${plantSuccessD}, Bal After: ${formatCurrency(game.balance)}`);
+            // *** END DETAILED LOGGING ***
+
+            if (plantSuccessD) {
+                 counts[cropId] = (counts[cropId] || 0) + 1;
+            } else {
+                // Add a warning if planting failed unexpectedly
+                 if (balanceBeforePlantD >= plantCost && game.grid[row][col].crop.id === 'empty') {
+                     console.warn(`SETUP DIVERSE: Planting ${cropId} failed at (${row},${col}) unexpectedly!`);
+                 }
+            }
         }
     }
-    game.logger.log(`Diverse Crops Initial: Planted ${JSON.stringify(counts)}. Initial Balance: $${game.balance.toLocaleString()}`, 1);
+    // Log the final counts and balance
+    game.logger.log(`Diverse Crops Initial: Planted ${JSON.stringify(counts)}. Final Initial Balance: ${formatCurrency(game.balance)}`, 1);
 }
+
 function setupTechFocusInitial(game) { /* ... as in Response #16 ... */
      game.logger.log(`Tech Focus Initial: Planting initial income crops.`, 2);
      const incomeCrop = 'lettuce';
@@ -77,6 +120,7 @@ function setupTechFocusInitial(game) { /* ... as in Response #16 ... */
      }
      game.logger.log(`Tech Focus Initial: Planted ${plantedCount} ${incomeCrop}. Initial Balance: $${game.balance.toLocaleString()}`, 1);
 }
+
 function setupWaterSavingInitial(game) { /* ... as in Response #16 ... */
      game.logger.log(`Water Saving Initial: Planting water-efficient crops.`, 2);
      let counts = {};
