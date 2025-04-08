@@ -16,20 +16,26 @@ const EMPTY_PLOT_SOIL_REGEN_BASE = 0.003; // Was 0.008 - Much lower passive rege
 // Cell class definition
 export class Cell {
     constructor() {
-        this.crop = getCropById('empty'); // Use getter for consistency
+        // *** CHANGE: Explicitly get 'empty' crop by ID ***
+        this.crop = getCropById('empty');
+        if (!this.crop || this.crop.id !== 'empty') {
+             // Fallback or error if getCropById failed, though it shouldn't now
+             console.error("CRITICAL: Failed to initialize cell with 'empty' crop!");
+             this.crop = { id: 'empty', name: 'Error Init', color: '#ff0000' }; // Default to an error state if needed
+        }
+
         this.waterLevel = 80; // %
-        this.soilHealth = 85; // % - Start slightly lower? Was 90.
+        this.soilHealth = 85; // %
         this.growthProgress = 0; // %
         this.daysSincePlanting = 0;
-        this.fertilized = false; // Has fertilizer been applied this cycle?
-        this.irrigated = false; // Has irrigation been applied today?
+        this.fertilized = false;
+        this.irrigated = false;
         this.harvestReady = false;
-        this.expectedYield = 0; // Base yield % expectation before modifiers
+        this.expectedYield = 0; // %
 
-        // Track crop history to implement monocropping penalties/benefits
-        this.cropHistory = []; // Stores { id: 'cropId', duration: days }
-        this.consecutivePlantings = 0; // Number of times same crop planted consecutively
-        this.pestPressure = 5; // % factor reducing yield/growth (0-100 scale?) Start with a tiny base
+        this.cropHistory = [];
+        this.consecutivePlantings = 0;
+        this.pestPressure = 5; // % Start with a tiny base
     }
 
     // Plant a new crop
@@ -264,11 +270,20 @@ export class Cell {
         this.soilHealth = Math.max(10, this.soilHealth - harvestImpact);
 
         // --- Reset Cell State ---
-        this.crop = getCropById('empty'); // Set to Empty Plot using getter
+        const harvestedCropId = this.crop.id;
+        const harvestedCrop = getCropById(harvestedCropId); // Use getter
+        const cropSoilImpact = harvestedCrop?.soilImpact || 0;
+        const monocropFactor = 1 + (this.consecutivePlantings * 0.15);
+        const harvestImpact = (4 + Math.abs(cropSoilImpact)) * monocropFactor;
+
+        this.soilHealth = Math.max(10, this.soilHealth - harvestImpact);
+
+        // *** CHANGE: Reset to empty using the getter for robustness ***
+        this.crop = getCropById('empty');
         this.growthProgress = 0;
         this.daysSincePlanting = 0;
-        this.fertilized = false; // Reset fertilizer status
-        this.irrigated = false; // Reset daily irrigation status
+        this.fertilized = false;
+        this.irrigated = false;
         this.harvestReady = false;
         this.expectedYield = 0;
         // Keep consecutivePlantings, pestPressure, cropHistory for next planting decision
