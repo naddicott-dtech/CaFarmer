@@ -22,14 +22,15 @@ const SUSTAINABILITY_SUBSIDY_BASE_LOW = 3000;
 const SUSTAINABILITY_SUBSIDY_BASE_MED = 6000;
 const SUSTAINABILITY_SUBSIDY_BASE_HIGH = 12000;
 
-const INITIAL_BALANCE = 225000;
-const PLANTING_COST_FACTOR = 0.10; // Keep planting cheap for now
-// ADJUSTED: Slightly increase overhead again
-const DAILY_OVERHEAD_COST = 4; // Was 2
+// ADJUSTED: Slightly more starting cash again
+const INITIAL_BALANCE = 235000; // Was 225000
+const PLANTING_COST_FACTOR = 0.10; // Keep low
+// ADJUSTED: Tiny increase in overhead
+const DAILY_OVERHEAD_COST = 3; // Was 2
 
-// ADJUSTED: Increase action costs moderately
-const IRRIGATION_COST = 50; // Was 20 (Original was 200)
-const FERTILIZE_COST = 75; // Was 30 (Original was 300)
+// ADJUSTED: Increase action costs moderately from previous test, still low overall
+const IRRIGATION_COST = 35; // Was 20 (Original 200)
+const FERTILIZE_COST = 50; // Was 30 (Original 300)
 // --- End Constants ---
 
 const DAYS_IN_YEAR = 360; // Define for clarity if using seasons of 90 days
