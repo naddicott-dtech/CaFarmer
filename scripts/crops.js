@@ -7,6 +7,7 @@
 
 // Exported crops data
 export const crops = [
+    { /* ... empty ... - needed for initializing cells with a NULL value */ },
     { // Corn: Keep value high
         id: 'corn', name: 'Corn', waterUse: 3.5, growthTime: 90, harvestValue: 160, color: '#ffd700',
         soilImpact: -2, fertilizerNeed: 80, basePrice: 75, waterSensitivity: 1.1, heatSensitivity: 0.8
