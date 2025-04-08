@@ -17,8 +17,10 @@ export class TestHarness {
             { id: 'diverse', name: 'Diverse Crops Strategy' },
             { id: 'tech-focus', name: 'Technology Focus Strategy' },
             { id: 'water-saving', name: 'Water Conservation Strategy' },
+            // --- ADDED DecisionRule ---
+            { id: 'decision-rule', name: 'Decision Rule Strategy' },
+            // --------------------------
             { id: 'no-action', name: 'No Action Strategy' }
-            // Add more test definitions here
         ];
         this.activeGame = null;
         this.selectedTests = []; // Array of test IDs to run
@@ -85,7 +87,7 @@ export class TestHarness {
                 headless: true,         // **** KEY CHANGE ****
                 testMode: true,         // Indicate a strategy is active
                 testStrategyId: testId, // Pass the ID for logging/setup
-                debugMode: true,        // Enable detailed logging from game
+                debugMode: false,       // Keep debug off for default runs to reduce noise
                 testEndYear: 50,        // Default end year
                 autoTerminate: true,    // Termination condition is checked in the loop below
                 nextTestCallback: () => this.startNextTest() // Pass the method to call when done
@@ -110,7 +112,7 @@ export class TestHarness {
             const durationMs = endTime - startTime;
             console.log(`Test '${testId}' simulation finished in ${durationMs} ms.`);
 
-            // Store final state for summary (optional)
+            // Store final state for summary
             this.results[testId] = {
                 endYear: this.activeGame.year,
                 endBalance: this.activeGame.balance,
@@ -154,10 +156,11 @@ export class TestHarness {
         const summary = Object.entries(this.results).map(([id, result]) => ({
             ID: id,
             EndYear: result.endYear,
-            Balance: result.endBalance.toLocaleString(),
-            FarmValue: result.endFarmValue.toLocaleString(),
+            // Format balance and farm value
+            Balance: formatCurrency(result.endBalance),
+            FarmValue: formatCurrency(result.endFarmValue),
             Health: `${result.endFarmHealth}%`,
-            Water: `${result.endWaterReserve}%`,
+            Water: `${result.endWaterReserve.toFixed(2)}%`, // Format water reserve
             Sustain: `${result.endSustainability}%`,
             Techs: result.researchedTechs,
             Time: `${(result.durationMs / 1000).toFixed(2)}s`
