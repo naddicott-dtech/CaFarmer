@@ -7,7 +7,19 @@
 
 // Exported crops data
 export const crops = [
-    { /* ... empty ... - needed for initializing cells with a NULL value */ },
+    {
+        id: 'empty',            // Unique identifier
+        name: 'Empty Plot',     // Display name
+        color: '#cccccc',       // Neutral color (light grey)
+        waterUse: 0,            // No active crop water use (evaporation handled in cell.update if needed)
+        growthTime: 0,          // Not applicable
+        harvestValue: 0,        // No harvest
+        basePrice: 0,           // Cannot be planted explicitly (cost is 0)
+        soilImpact: 0,          // Specific impact is zero; degradation/regen handled by empty plot logic
+        fertilizerNeed: 0,      // Not applicable
+        waterSensitivity: 0,    // Not applicable
+        heatSensitivity: 0     // Not applicable
+    },
     { // Corn: Keep value high
         id: 'corn', name: 'Corn', waterUse: 3.5, growthTime: 90, harvestValue: 160, color: '#ffd700',
         soilImpact: -2, fertilizerNeed: 80, basePrice: 75, waterSensitivity: 1.1, heatSensitivity: 0.8
