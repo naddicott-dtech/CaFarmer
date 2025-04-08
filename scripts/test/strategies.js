@@ -5,16 +5,16 @@
  * Assigns a strategy function to game.strategyTick.
  */
 
-// *** FIX: Import getCropById directly ***
-import { crops, getCropById } from '../crops.js'; // Verify path is correct
+import { crops, getCropById } from '../crops.js';
 import { formatCurrency } from '../utils.js';
 
 console.log('Test strategies module loaded');
 
 // Main setup function called by TestHarness
 export function setupTestStrategy(game, strategyId) {
-    console.log(`Setting up test strategy: ${strategyId}`);
-    game.logger.log(`Applying strategy: ${strategyId}`, 1);
+    // Use logger for setup message
+    game.logger.log(`Setting up test strategy: ${strategyId}`, 1); // INFO level
+    game.logger.log(`Applying strategy: ${strategyId}`, 1); // INFO level
 
     // Assign the appropriate update function to the game's strategyTick hook
     switch (strategyId) {
@@ -44,97 +44,111 @@ export function setupTestStrategy(game, strategyId) {
     }
 }
 
-// --- Initial Setup Functions --- (No changes needed here)
+// --- Initial Setup Functions ---
 function setupMonocultureInitial(game) {
     const cropId = 'corn';
-    game.logger.log(`Monoculture Initial: Planting ${cropId} everywhere.`, 2);
-    let plantedCount = 0;
-    const cropToPlantData = getCropById(cropId); // Get data once
+    const cropToPlantData = getCropById(cropId);
     const plantCost = cropToPlantData ? Math.round(cropToPlantData.basePrice * game.plantingCostFactor) : Infinity;
-    console.log(`SETUP MONO: Calculated plant cost for ${cropId}: ${formatCurrency(plantCost)}`); // Log calculated cost
+    // Log setup info at DEBUG level
+    game.logger.log(`SETUP MONO: Calculated plant cost for ${cropId}: ${formatCurrency(plantCost)}`, 2);
 
+    let plantedCount = 0;
     for (let row = 0; row < game.gridSize; row++) {
         for (let col = 0; col < game.gridSize; col++) {
-            // *** DETAILED LOGGING ADDED HERE ***
             const balanceBeforePlant = game.balance;
-            console.log(`SETUP MONO: Attempting plant (${row},${col}), Bal Before: ${formatCurrency(balanceBeforePlant)}, Need: ${formatCurrency(plantCost)}`);
-            const plantSuccess = game.plantCrop(row, col, cropId); // Call the game's planting function
-            console.log(`SETUP MONO: Planted (${row},${col}) -> Success: ${plantSuccess}, Bal After: ${formatCurrency(game.balance)}`);
-             // *** END DETAILED LOGGING ***
+            // *** CHANGE: Use game logger at VERBOSE level (3) ***
+            game.logger.log(`SETUP MONO: Attempting plant (${row},${col}), Bal Before: ${formatCurrency(balanceBeforePlant)}, Need: ${formatCurrency(plantCost)}`, 3);
+            const plantSuccess = game.plantCrop(row, col, cropId);
+            game.logger.log(`SETUP MONO: Planted (${row},${col}) -> Success: ${plantSuccess}, Bal After: ${formatCurrency(game.balance)}`, 3);
+            // *** END CHANGE ***
 
             if (plantSuccess) {
                 plantedCount++;
             } else {
-                // Add a warning if planting failed when expected to succeed
                 if (balanceBeforePlant >= plantCost && game.grid[row][col].crop.id === 'empty') {
-                    console.warn(`SETUP MONO: Planting failed at (${row},${col}) unexpectedly!`);
+                    // Use logger for warnings too
+                    game.logger.log(`SETUP MONO WARNING: Planting failed at (${row},${col}) unexpectedly!`, 0);
                 }
             }
         }
     }
-    // Log the final count and balance
+    // Log summary at INFO level
     game.logger.log(`Monoculture Initial: Planted ${plantedCount} ${cropId} plots. Final Initial Balance: ${formatCurrency(game.balance)}`, 1);
 }
 
 function setupDiverseCropsInitial(game) {
-    game.logger.log(`Diverse Crops Initial: Planting various crops.`, 2);
     const cropIds = crops.filter(c => c.id !== 'empty').map(c => c.id);
     if (cropIds.length === 0) { game.logger.log("No crops defined (excluding empty)!", 0); return; }
 
-    let counts = {}; // To track how many of each were actually planted
+    let counts = {};
 
     for (let row = 0; row < game.gridSize; row++) {
         for (let col = 0; col < game.gridSize; col++) {
-            const cropIndex = (row * 3 + col * 5 + Math.floor(game.day / 10)) % cropIds.length; // Use same pattern as strategy
+            const cropIndex = (row * 3 + col * 5 + Math.floor(game.day / 10)) % cropIds.length;
             const cropId = cropIds[cropIndex];
             const cropToPlantData = getCropById(cropId);
             const plantCost = cropToPlantData ? Math.round(cropToPlantData.basePrice * game.plantingCostFactor) : Infinity;
 
-            // *** DETAILED LOGGING ADDED HERE ***
             const balanceBeforePlantD = game.balance;
-            console.log(`SETUP DIVERSE: Attempting plant (${row},${col}) - ${cropId}, Bal Before: ${formatCurrency(balanceBeforePlantD)}, Need: ${formatCurrency(plantCost)}`);
-            const plantSuccessD = game.plantCrop(row, col, cropId); // Call the game's planting function
-            console.log(`SETUP DIVERSE: Planted (${row},${col}) -> Success: ${plantSuccessD}, Bal After: ${formatCurrency(game.balance)}`);
-            // *** END DETAILED LOGGING ***
+            // *** CHANGE: Use game logger at VERBOSE level (3) ***
+            game.logger.log(`SETUP DIVERSE: Attempting plant (${row},${col}) - ${cropId}, Bal Before: ${formatCurrency(balanceBeforePlantD)}, Need: ${formatCurrency(plantCost)}`, 3);
+            const plantSuccessD = game.plantCrop(row, col, cropId);
+            game.logger.log(`SETUP DIVERSE: Planted (${row},${col}) -> Success: ${plantSuccessD}, Bal After: ${formatCurrency(game.balance)}`, 3);
+            // *** END CHANGE ***
 
             if (plantSuccessD) {
                  counts[cropId] = (counts[cropId] || 0) + 1;
             } else {
-                // Add a warning if planting failed unexpectedly
                  if (balanceBeforePlantD >= plantCost && game.grid[row][col].crop.id === 'empty') {
-                     console.warn(`SETUP DIVERSE: Planting ${cropId} failed at (${row},${col}) unexpectedly!`);
+                     game.logger.log(`SETUP DIVERSE WARNING: Planting ${cropId} failed at (${row},${col}) unexpectedly!`, 0);
                  }
             }
         }
     }
-    // Log the final counts and balance
+    // Log summary at INFO level
     game.logger.log(`Diverse Crops Initial: Planted ${JSON.stringify(counts)}. Final Initial Balance: ${formatCurrency(game.balance)}`, 1);
 }
 
-function setupTechFocusInitial(game) { /* ... as in Response #16 ... */
+function setupTechFocusInitial(game) {
      game.logger.log(`Tech Focus Initial: Planting initial income crops.`, 2);
      const incomeCrop = 'lettuce';
      let plantedCount = 0;
+     const cropToPlantData = getCropById(incomeCrop); // Get data once
+     const plantCost = cropToPlantData ? Math.round(cropToPlantData.basePrice * game.plantingCostFactor) : Infinity;
      for (let row = 0; row < Math.ceil(game.gridSize / 2); row++) {
-        for (let col = 0; col < Math.ceil(game.gridSize / 2); col++) { if (game.plantCrop(row, col, incomeCrop)) plantedCount++; }
+        for (let col = 0; col < Math.ceil(game.gridSize / 2); col++) {
+             const balanceBefore = game.balance;
+             // Log planting attempts at VERBOSE level
+             game.logger.log(`SETUP TECH: Attempting plant (${row},${col}), Bal Before: ${formatCurrency(balanceBefore)}, Need: ${formatCurrency(plantCost)}`, 3);
+             const success = game.plantCrop(row, col, incomeCrop);
+             game.logger.log(`SETUP TECH: Planted (${row},${col}) -> Success: ${success}, Bal After: ${formatCurrency(game.balance)}`, 3);
+             if (success) plantedCount++;
+        }
      }
-     game.logger.log(`Tech Focus Initial: Planted ${plantedCount} ${incomeCrop}. Initial Balance: $${game.balance.toLocaleString()}`, 1);
+     game.logger.log(`Tech Focus Initial: Planted ${plantedCount} ${incomeCrop}. Initial Balance: ${formatCurrency(game.balance)}`, 1); // INFO level summary
 }
 
-function setupWaterSavingInitial(game) { /* ... as in Response #16 ... */
+function setupWaterSavingInitial(game) {
      game.logger.log(`Water Saving Initial: Planting water-efficient crops.`, 2);
      let counts = {};
      const waterEfficient = crops.filter(c => c.id !== 'empty' && c.waterUse < 3.0).map(c => c.id);
-     const targetCrops = waterEfficient.length > 0 ? waterEfficient : ['grapes', 'lettuce'];
-     if (targetCrops.length === 0) { game.logger.log("No water efficient crops defined for setup!", 0); return; }
+     const targetCropsIds = waterEfficient.length > 0 ? waterEfficient : ['grapes', 'lettuce'];
+     if (targetCropsIds.length === 0) { game.logger.log("No water efficient crops defined for setup!", 0); return; }
      for (let row = 0; row < game.gridSize; row++) {
         for (let col = 0; col < game.gridSize; col++) {
-             const cropIndex = (row * game.gridSize + col) % targetCrops.length;
-             const cropId = targetCrops[cropIndex];
-             if (game.plantCrop(row, col, cropId)) counts[cropId] = (counts[cropId] || 0) + 1;
+             const cropIndex = (row * game.gridSize + col) % targetCropsIds.length;
+             const cropId = targetCropsIds[cropIndex];
+             const cropToPlantData = getCropById(cropId);
+             const plantCost = cropToPlantData ? Math.round(cropToPlantData.basePrice * game.plantingCostFactor) : Infinity;
+             const balanceBefore = game.balance;
+             // Log planting attempts at VERBOSE level
+             game.logger.log(`SETUP WATER: Attempting plant (${row},${col}) - ${cropId}, Bal Before: ${formatCurrency(balanceBefore)}, Need: ${formatCurrency(plantCost)}`, 3);
+             const success = game.plantCrop(row, col, cropId);
+             game.logger.log(`SETUP WATER: Planted (${row},${col}) -> Success: ${success}, Bal After: ${formatCurrency(game.balance)}`, 3);
+             if (success) counts[cropId] = (counts[cropId] || 0) + 1;
         }
      }
-     game.logger.log(`Water Saving Initial: Planted ${JSON.stringify(counts)}. Initial Balance: $${game.balance.toLocaleString()}`, 1);
+     game.logger.log(`Water Saving Initial: Planted ${JSON.stringify(counts)}. Initial Balance: ${formatCurrency(game.balance)}`, 1); // INFO level summary
 }
 
 
@@ -152,48 +166,39 @@ function updateMonocultureStrategy(game) {
     const cropToPlantData = getCropById(cropId);
     const plantCost = cropToPlantData ? Math.round(cropToPlantData.basePrice * game.plantingCostFactor) : Infinity;
 
-    // --- Harvest Loop ---
+    // Harvest Loop
     for (let row = 0; row < game.gridSize; row++) {
         for (let col = 0; col < game.gridSize; col++) {
             const cell = game.grid[row][col];
             if (cell.harvestReady) {
-                const harvestResult = game.harvestCell(row, col); // Get result object
+                const harvestResult = game.harvestCell(row, col);
                 if (harvestResult.success) {
                     harvestedCount++;
                     totalHarvestIncome += harvestResult.income;
-                    // Individual success logs removed (or kept at VERBOSE in harvestCell)
                 } else {
-                    // Log failure at INFO level if needed
                     game.logger.log(`Harvest FAILED: (${row},${col}), Reason: ${harvestResult.reason}`, 1);
                 }
             }
         }
     }
-    // Log Aggregate Harvest for the Tick (if any happened)
     if (harvestedCount > 0) {
          game.logger.log(`HARVEST SUMMARY: Harvested ${harvestedCount} plots for ${formatCurrency(totalHarvestIncome)}. New Bal: ${formatCurrency(game.balance)}`, 1);
     }
 
-    // --- Planting / Action Loop ---
+    // Planting / Action Loop
     for (let row = 0; row < game.gridSize; row++) {
         for (let col = 0; col < game.gridSize; col++) {
             const cell = game.grid[row][col];
-            // Skip actions on plots just harvested (now empty)
             if (cell.crop.id === 'empty') {
-                 // Plant if Empty (and not just harvested)
-                 // Need to ensure harvestCell sets crop to empty *before* this loop runs
-                 // or check daysSincePlanting === 0? Let's assume harvestCell resets state okay.
                 if (game.balance >= plantCost) {
                     if (game.plantCrop(row, col, cropId)) planted++;
                 }
-            } else if (!cell.harvestReady) { // Only apply actions to non-harvest-ready crops
-                // Irrigate if needed
+            } else if (!cell.harvestReady) {
                 if (!cell.irrigated && cell.waterLevel < 50) {
                     if (game.balance >= irrigationCost) {
                         if (game.irrigateCell(row, col)) irrigated++;
                     }
                 }
-                // Fertilize ONCE during mid-growth
                 if (!cell.fertilized && cell.growthProgress > 25 && cell.growthProgress < 75) {
                      if (game.balance >= fertilizeCost) {
                          if (game.fertilizeCell(row, col)) fertilized++;
@@ -202,29 +207,35 @@ function updateMonocultureStrategy(game) {
             }
         }
     }
-
-    // Log other actions summary (at VERBOSE level)
     if(planted || irrigated || fertilized) {
         game.logger.log(`Mono Tick Actions: P:${planted}, I:${irrigated}, F:${fertilized}. Bal: ${formatCurrency(game.balance)}`, 3);
     }
 
      // Tech research logic - only after Year 1
      if (game.year > 1 && game.day % 30 === 0) {
-        const dripCost = game.getTechnologyCost('drip_irrigation');
-        const sensorsCost = game.getTechnologyCost('soil_sensors');
-        const dronesCost = game.getTechnologyCost('precision_drones');
-        const researchBuffer = 20000;
-        if (!game.hasTechnology('drip_irrigation') && game.balance >= (dripCost + researchBuffer)) {
-            game.researchTechnology('drip_irrigation');
-        } else if (!game.hasTechnology('soil_sensors') && game.balance >= (sensorsCost + researchBuffer)) {
-            game.researchTechnology('soil_sensors');
-        } else if (!game.hasTechnology('precision_drones') && game.hasTechnology('soil_sensors') && game.balance >= (dronesCost + researchBuffer)) {
-            game.researchTechnology('precision_drones');
+        const researchBuffer = 20000; // Keep buffer for basic strategies
+        const researchQueue = [
+            { id: 'drip_irrigation', prereqs: [] },
+            { id: 'soil_sensors', prereqs: [] },
+            { id: 'precision_drones', prereqs: ['soil_sensors'] }
+        ];
+
+        for (const techInfo of researchQueue) {
+             const tech = game.technologies.find(t => t.id === techInfo.id);
+             if (tech && !tech.researched) {
+                 const cost = tech.cost;
+                 const prereqsMet = techInfo.prereqs.every(p => game.hasTechnology(p));
+                 // Check prerequisites AND affordability (with buffer)
+                 if (prereqsMet && game.balance >= (cost + researchBuffer)) {
+                     if (game.researchTechnology(techInfo.id)) {
+                         break; // Only research one tech per check
+                     }
+                 }
+             }
         }
      }
 }
 
-// --- updateDiverseCropsStrategy Function Replacement ---
 function updateDiverseCropsStrategy(game) {
      if (game.day % 5 !== 0) return;
 
@@ -237,12 +248,12 @@ function updateDiverseCropsStrategy(game) {
      const irrigationCost = game.irrigationCost;
      const fertilizeCost = game.fertilizeCost;
 
-     // --- Harvest Loop ---
+     // Harvest Loop
      for (let row = 0; row < game.gridSize; row++) {
         for (let col = 0; col < game.gridSize; col++) {
             const cell = game.grid[row][col];
             if (cell.harvestReady) {
-                 const harvestResult = game.harvestCell(row, col); // Get result object
+                 const harvestResult = game.harvestCell(row, col);
                  if (harvestResult.success) {
                      harvestedCount++;
                      totalHarvestIncome += harvestResult.income;
@@ -252,12 +263,11 @@ function updateDiverseCropsStrategy(game) {
             }
         }
      }
-     // Log Aggregate Harvest for the Tick
      if (harvestedCount > 0) {
          game.logger.log(`HARVEST SUMMARY: Harvested ${harvestedCount} plots for ${formatCurrency(totalHarvestIncome)}. New Bal: ${formatCurrency(game.balance)}`, 1);
      }
 
-     // --- Planting / Action Loop ---
+     // Planting / Action Loop
      for (let row = 0; row < game.gridSize; row++) {
         for (let col = 0; col < game.gridSize; col++) {
             const cell = game.grid[row][col];
@@ -269,14 +279,12 @@ function updateDiverseCropsStrategy(game) {
                 if (game.balance >= plantCost) {
                     if (game.plantCrop(row, col, cropId)) planted++;
                 }
-            } else if (!cell.harvestReady) { // Actions only if crop exists and not ready
-                // Irrigate if needed
+            } else if (!cell.harvestReady) {
                 if (!cell.irrigated && cell.waterLevel < 60) {
                      if (game.balance >= irrigationCost) {
                          if (game.irrigateCell(row, col)) irrigated++;
                      }
                 }
-                // Fertilize only once during mid-growth
                 else if (!cell.fertilized && cell.growthProgress > 25 && cell.growthProgress < 75) {
                      if (game.balance >= fertilizeCost) {
                          if (game.fertilizeCell(row, col)) fertilized++;
@@ -285,97 +293,198 @@ function updateDiverseCropsStrategy(game) {
             }
         }
      }
-
-      // Log other actions summary (at VERBOSE level)
       if(planted || irrigated || fertilized) {
          game.logger.log(`Diverse Tick Actions: P:${planted}, I:${irrigated}, F:${fertilized}. Bal: ${formatCurrency(game.balance)}`, 3);
       }
 
      // Tech research logic - only after Year 1
      if (game.year > 1 && game.day % 30 === 0) {
-         const noTillCost = game.getTechnologyCost('no_till_farming');
-         const sensorsCost = game.getTechnologyCost('soil_sensors');
-         const silvoCost = game.getTechnologyCost('silvopasture');
-         const researchBuffer = 25000;
-         if (!game.hasTechnology('no_till_farming') && game.balance >= (noTillCost + researchBuffer)) {
-             game.researchTechnology('no_till_farming');
-         } else if (!game.hasTechnology('soil_sensors') && game.balance >= (sensorsCost + researchBuffer)) {
-             game.researchTechnology('soil_sensors');
-         } else if (!game.hasTechnology('silvopasture') && game.hasTechnology('no_till_farming') && game.balance >= (silvoCost + researchBuffer)) {
-             game.researchTechnology('silvopasture');
+         const researchBuffer = 25000; // Keep buffer for basic strategies
+         const researchQueue = [
+             { id: 'no_till_farming', prereqs: [] },
+             { id: 'soil_sensors', prereqs: [] },
+             { id: 'silvopasture', prereqs: ['no_till_farming'] } // Example prereq
+         ];
+
+         for (const techInfo of researchQueue) {
+             const tech = game.technologies.find(t => t.id === techInfo.id);
+             if (tech && !tech.researched) {
+                 const cost = tech.cost;
+                 const prereqsMet = techInfo.prereqs.every(p => game.hasTechnology(p));
+                  // Check prerequisites AND affordability (with buffer)
+                 if (prereqsMet && game.balance >= (cost + researchBuffer)) {
+                     if (game.researchTechnology(techInfo.id)) {
+                         break; // Only research one tech per check
+                     }
+                 }
+             }
          }
      }
 }
+
 function updateTechFocusStrategy(game) {
     const incomeCrop = 'lettuce';
-    // *** FIX: Use imported getCropById ***
     const incomeCropData = getCropById(incomeCrop);
     const incomeCropCost = incomeCropData ? Math.round(incomeCropData.basePrice * game.plantingCostFactor) : Infinity;
     const irrigationCost = game.irrigationCost;
-     if (game.day % 5 === 0) {
-         let harvested = 0, planted = 0, irrigated = 0;
-         for (let row = 0; row < game.gridSize; row++) {
-            for (let col = 0; col < game.gridSize; col++) {
-                const cell = game.grid[row][col];
-                if (cell.harvestReady) { if (game.harvestCell(row, col)) harvested++; }
-                 const currentCellState = game.grid[row][col];
-                if (currentCellState.crop.id === 'empty' && row < Math.ceil(game.gridSize / 2) && col < Math.ceil(game.gridSize / 2)) {
-                     if (game.balance >= incomeCropCost) { if (game.plantCrop(row, col, incomeCrop)) planted++; }
-                }
-                else if (currentCellState.crop.id !== 'empty' && !currentCellState.irrigated && currentCellState.waterLevel < 30) {
-                     if (game.balance >= irrigationCost) { if(game.irrigateCell(row, col)) irrigated++; }
+
+    let harvestedCount = 0;
+    let totalHarvestIncome = 0;
+    let planted = 0, irrigated = 0;
+
+    // --- Harvest Loop --- (Run every tick for responsiveness)
+    for (let row = 0; row < game.gridSize; row++) {
+        for (let col = 0; col < game.gridSize; col++) {
+            if (game.grid[row][col].harvestReady) {
+                const harvestResult = game.harvestCell(row, col);
+                if (harvestResult.success) {
+                    harvestedCount++;
+                    totalHarvestIncome += harvestResult.income;
                 }
             }
-         }
-          if(harvested || planted || irrigated) { game.logger.log(`Tech Tick: H:${harvested}, P:${planted}, I:${irrigated}`, 3); } // Verbose
-     }
-     if (game.day % 10 === 0) {
-         const researchQueue = ['soil_sensors', 'drip_irrigation', 'precision_drones', 'ai_irrigation', 'drought_resistant', 'no_till_farming', 'renewable_energy', 'greenhouse', 'silvopasture'];
+        }
+    }
+    if (harvestedCount > 0) {
+        game.logger.log(`HARVEST SUMMARY: Harvested ${harvestedCount} plots for ${formatCurrency(totalHarvestIncome)}. New Bal: ${formatCurrency(game.balance)}`, 1);
+    }
+
+    // --- Actions Loop --- (Run less frequently)
+    if (game.day % 5 === 0) {
+        for (let row = 0; row < game.gridSize; row++) {
+            for (let col = 0; col < game.gridSize; col++) {
+                const cell = game.grid[row][col];
+                if (cell.crop.id === 'empty') {
+                    // Plant only first 25 plots
+                    if (row < 5 && col < 5) {
+                         if (game.balance >= incomeCropCost) {
+                             if (game.plantCrop(row, col, incomeCrop)) planted++;
+                         }
+                    }
+                } else if (!cell.harvestReady) { // Only irrigate existing crops
+                    if (!cell.irrigated && cell.waterLevel < 40) { // Water more aggressively
+                         if (game.balance >= irrigationCost) {
+                             if (game.irrigateCell(row, col)) irrigated++;
+                         }
+                    }
+                }
+            }
+        }
+        if (planted || irrigated) {
+            game.logger.log(`Tech Tick Actions: P:${planted}, I:${irrigated}. Bal: ${formatCurrency(game.balance)}`, 3);
+        }
+    }
+
+    // --- Research Loop --- (Run frequently but check affordability)
+     if (game.day % 10 === 0) { // Check research opportunities often
+         const researchQueue = [ // Prioritized list
+             'soil_sensors', 'drip_irrigation', 'precision_drones',
+             'ai_irrigation', 'drought_resistant', 'no_till_farming',
+             'renewable_energy', 'greenhouse', 'silvopasture'
+         ];
          for (const techId of researchQueue) {
             const tech = game.technologies.find(t => t.id === techId);
-             // *** NO RESEARCH BUFFER - Just check cost ***
-            if (tech && !tech.researched && game.balance >= tech.cost) {
-                if (game.researchTechnology(techId)) { game.logger.log(`Tech Strategy researching: ${techId}`, 2); break; }
+            if (tech && !tech.researched) {
+                 const cost = game.getTechnologyCost(techId); // Use helper function
+                 const prereqsMet = checkTechPrerequisites(tech, game.researchedTechs); // Use helper
+
+                 // *** CHANGE: Check balance >= cost ***
+                 if (prereqsMet && game.balance >= cost) {
+                    if (game.researchTechnology(techId)) {
+                        game.logger.log(`Tech Strategy researched: ${techId}`, 2); // DEBUG level
+                        break; // Research only one tech per check cycle
+                    }
+                 } else if (prereqsMet && game.balance < cost) {
+                     // Optional: Log that we want the tech but can't afford it yet
+                     game.logger.log(`Tech Strategy wants ${techId} ($${cost}) but cannot afford ($${game.balance})`, 3); // VERBOSE
+                     break; // Don't check further down the list if we can't afford this one
+                 }
+                 // *** END CHANGE ***
             }
          }
      }
 }
 
+
 function updateWaterSavingStrategy(game) {
-    if (game.day % 3 !== 0) return;
-     const targetCropsData = crops.filter(c => c.id !== 'empty' && c.waterUse < 3.0);
-     let targetCropsIds = targetCropsData.map(c => c.id);
-     if (targetCropsIds.length === 0) targetCropsIds.push('lettuce');
-     let harvested = 0, planted = 0, irrigated = 0;
-     const irrigationCost = game.irrigationCost;
-     for (let row = 0; row < game.gridSize; row++) {
+    if (game.day % 3 !== 0) return; // Check less often
+
+    const targetCropsData = crops.filter(c => c.id !== 'empty' && c.waterUse < 3.0);
+    let targetCropsIds = targetCropsData.map(c => c.id);
+    if (targetCropsIds.length === 0) targetCropsIds.push('lettuce'); // Fallback
+
+    let harvestedCount = 0;
+    let totalHarvestIncome = 0;
+    let planted = 0, irrigated = 0;
+    const irrigationCost = game.irrigationCost;
+
+    // --- Harvest Loop ---
+    for (let row = 0; row < game.gridSize; row++) {
         for (let col = 0; col < game.gridSize; col++) {
-            const cell = game.grid[row][col];
-            if (cell.harvestReady) { if (game.harvestCell(row, col)) harvested++; }
-             const currentCellState = game.grid[row][col];
-            if (currentCellState.crop.id === 'empty') {
-                const cropIndex = (row * game.gridSize + col) % targetCropsIds.length;
-                const cropId = targetCropsIds[cropIndex];
-                // *** FIX: Use imported getCropById ***
-                const cropToPlantData = getCropById(cropId);
-                const plantCost = cropToPlantData ? Math.round(cropToPlantData.basePrice * game.plantingCostFactor) : Infinity;
-                 if (game.balance >= plantCost) { if (game.plantCrop(row, col, cropId)) planted++; }
-            }
-            else if (!currentCellState.irrigated && currentCellState.waterLevel < 35 && game.waterReserve > 20) {
-                 if (game.balance >= irrigationCost) { if (game.irrigateCell(row, col)) irrigated++; }
+            if (game.grid[row][col].harvestReady) {
+                const harvestResult = game.harvestCell(row, col);
+                if (harvestResult.success) {
+                    harvestedCount++;
+                    totalHarvestIncome += harvestResult.income;
+                }
             }
         }
+    }
+    if (harvestedCount > 0) {
+        game.logger.log(`HARVEST SUMMARY: Harvested ${harvestedCount} plots for ${formatCurrency(totalHarvestIncome)}. New Bal: ${formatCurrency(game.balance)}`, 1);
+    }
+
+    // --- Planting / Action Loop ---
+    for (let row = 0; row < game.gridSize; row++) {
+        for (let col = 0; col < game.gridSize; col++) {
+            const cell = game.grid[row][col];
+            if (cell.crop.id === 'empty') {
+                const cropIndex = (row * game.gridSize + col) % targetCropsIds.length;
+                const cropId = targetCropsIds[cropIndex];
+                const cropToPlantData = getCropById(cropId);
+                const plantCost = cropToPlantData ? Math.round(cropToPlantData.basePrice * game.plantingCostFactor) : Infinity;
+                 if (game.balance >= plantCost) {
+                     if (game.plantCrop(row, col, cropId)) planted++;
+                 }
+            }
+            else if (!cell.irrigated && cell.waterLevel < 35 && game.waterReserve > 20) { // Keep water threshold tight
+                 if (game.balance >= irrigationCost) {
+                     if (game.irrigateCell(row, col)) irrigated++;
+                 }
+            }
+        }
+    }
+     if(planted || irrigated) {
+         game.logger.log(`WaterSave Tick Actions: P:${planted}, I:${irrigated}. Bal: ${formatCurrency(game.balance)}`, 3);
      }
-      if(harvested || planted || irrigated) { game.logger.log(`WaterSave Tick: H:${harvested}, P:${planted}, I:${irrigated}`, 3); } // Verbose
-     if (game.day % 30 === 0) {
-         const dripCost = game.getTechnologyCost('drip_irrigation');
-         const sensorsCost = game.getTechnologyCost('soil_sensors');
-         const droughtResCost = game.getTechnologyCost('drought_resistant');
-         const aiIrrigationCost = game.getTechnologyCost('ai_irrigation');
-          // *** NO RESEARCH BUFFER - Just check cost ***
-         if (!game.hasTechnology('drip_irrigation') && game.balance >= dripCost) { game.researchTechnology('drip_irrigation'); }
-         else if (!game.hasTechnology('soil_sensors') && game.balance >= sensorsCost) { game.researchTechnology('soil_sensors'); }
-         else if (!game.hasTechnology('drought_resistant') && game.balance >= droughtResCost) { game.researchTechnology('drought_resistant'); }
-         else if (!game.hasTechnology('ai_irrigation') && game.hasTechnology('drip_irrigation') && game.hasTechnology('soil_sensors') && game.balance >= aiIrrigationCost) { game.researchTechnology('ai_irrigation'); }
+
+    // --- Research Loop --- (Check affordability)
+     if (game.day % 30 === 0) { // Check less frequently
+         const researchQueue = [
+             { id: 'drip_irrigation', prereqs: [] },
+             { id: 'soil_sensors', prereqs: [] },
+             { id: 'drought_resistant', prereqs: [] },
+             { id: 'ai_irrigation', prereqs: ['drip_irrigation', 'soil_sensors'] }
+         ];
+         const researchBuffer = 10000; // Smaller buffer maybe?
+
+         for (const techInfo of researchQueue) {
+             const tech = game.technologies.find(t => t.id === techInfo.id);
+             if (tech && !tech.researched) {
+                 const cost = game.getTechnologyCost(techInfo.id);
+                 const prereqsMet = checkTechPrerequisites(tech, game.researchedTechs);
+
+                 // *** CHANGE: Check balance >= cost (with buffer) ***
+                 if (prereqsMet && game.balance >= (cost + researchBuffer)) {
+                    if (game.researchTechnology(techInfo.id)) {
+                        game.logger.log(`WaterSave Strategy researched: ${techInfo.id}`, 2);
+                        break; // Only one per check
+                    }
+                 } else if (prereqsMet && game.balance < (cost + researchBuffer)) {
+                     game.logger.log(`WaterSave wants ${techInfo.id} ($${cost}) but cannot afford ($${game.balance} < $${cost + researchBuffer})`, 3);
+                     // Don't necessarily break, maybe a cheaper tech is available later
+                 }
+                 // *** END CHANGE ***
+             }
+         }
      }
 }
