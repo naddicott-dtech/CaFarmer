@@ -158,21 +158,41 @@ function createInnovationGrantEvent(day, farmState, isEarlyGame) {
     const techCount = farmState?.researchedTechs?.length || 0;
     let grantAmount = 0;
     let message = '';
-    const earlyGrantChance = isEarlyGame ? 0.35 : 0.2; // Higher chance in first 2 years
-    const earlyGrantAmount = 3000; // Base amount
+    const earlyGrantChance = isEarlyGame ? 0.35 : 0.2; // Keep higher chance early
+    const earlyGrantAmount = 3000;
 
+    // --- TUNED GRANT AMOUNTS AND PROBABILITIES ---
     if (techCount === 0) {
         if (Math.random() < earlyGrantChance) {
             grantAmount = earlyGrantAmount;
             message = `You received a small ${formatCurrency(grantAmount)} starter grant for farm innovation. Consider investing in research.`;
         } else {
-            message = 'Your farm was not selected for an innovation grant due to lack of technological adoption.';
+            message = 'Your farm was not selected for an innovation grant this time.'; // Less harsh message
         }
-    } else if (techCount <= 1) { grantAmount = 5000; message = `You received a ${formatCurrency(grantAmount)} innovation grant for your initial research efforts.`; }
-    else if (techCount <= 3) { grantAmount = 10000; message = `You received a ${formatCurrency(grantAmount)} innovation grant for farm research!`; }
-    else if (techCount <= 5) { grantAmount = 15000; message = `You received a ${formatCurrency(grantAmount)} substantial innovation grant for your technological leadership!`; }
-    else { grantAmount = 20000 + (techCount - 6) * 2000; message = `You received a major ${formatCurrency(grantAmount)} innovation grant for being at the cutting edge of agricultural technology!`; }
-    return { type: 'technology', subType: 'innovation_grant', day, amount: grantAmount, message, isAlert: grantAmount > 0 };
+    } else if (techCount <= 1 && Math.random() < 0.4) { // Lower chance for next tier
+         grantAmount = 5000;
+         message = `You received a ${formatCurrency(grantAmount)} innovation grant for your initial research efforts.`;
+    } else if (techCount <= 3 && Math.random() < 0.3) { // Even lower chance
+         grantAmount = 8000; // Reduced amount (was 10k)
+         message = `You received a ${formatCurrency(grantAmount)} innovation grant for farm research!`;
+    } else if (techCount <= 5 && Math.random() < 0.2) { // Low chance
+         grantAmount = 12000; // Reduced amount (was 15k)
+         message = `You received a ${formatCurrency(grantAmount)} substantial innovation grant for your technological leadership!`;
+    } else if (techCount > 5 && Math.random() < 0.15) { // Very low chance for major grant
+         grantAmount = 15000 + (techCount - 6) * 1000; // Reduced scaling, capped lower (was 20k + 2k per)
+         grantAmount = Math.min(grantAmount, 25000); // Hard cap on max grant
+         message = `You received a major ${formatCurrency(grantAmount)} innovation grant for being at the cutting edge!`;
+    } else {
+         // Default: No grant this time if higher tiers didn't trigger
+         message = 'Your farm was considered but not selected for a major innovation grant.';
+    }
+
+    // Ensure message exists even if no grant
+    if (grantAmount === 0 && !message) {
+         message = 'No innovation grants awarded this cycle.';
+    }
+
+    return { type: 'technology', subType: 'innovation_grant', day, amount: grantAmount, message, isAlert: grantAmount > 5000 }; // Alert only for larger grants
  }
 
 function createResearchBreakthroughEvent(day) {
