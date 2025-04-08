@@ -585,42 +585,52 @@ export class CaliforniaClimateFarmer {
         // Ensure the cell actually exists
         if (!this.grid[row] || !this.grid[row][col]) {
              this.logger.log(`ERROR: Cell object missing at (${row}, ${col})`, 0);
+             console.error(`ERROR: Cell object missing at (${row}, ${col})`); // Use console.error too
              return false;
         }
         const cell = this.grid[row][col];
 
         // 2. Crop ID Validation
-        const newCrop = getCropById(cropId); // Get the crop data object
+        const newCrop = getCropById(cropId);
         if (!newCrop || newCrop.id === 'empty') { this.logger.log(`Invalid crop ID for planting: ${cropId}`, 0); return false; }
 
         // 3. Cost Calculation & Check
         const plantingCost = Math.round(newCrop.basePrice * this.plantingCostFactor);
         if (this.balance < plantingCost) {
             const msg = `Cannot afford to plant ${newCrop.name}. Cost: ${formatCurrency(plantingCost)}, Balance: ${formatCurrency(this.balance)}`;
-            this.addEvent(msg, true); this.logger.log(msg, 2); return false;
-        }
-
-        // 4. Occupied Plot Check - *** MODIFIED ***
-        // Check if the current crop object in the cell is *actually* the 'empty' crop object,
-        // or at least has the id 'empty'. Be defensive.
-        const currentCropId = cell.crop ? cell.crop.id : 'error'; // Handle case where cell.crop might be null/undefined initially
-        if (currentCropId !== 'empty') {
-            // This log should now only appear if a plot is TRULY occupied during gameplay
-            const msg = `Cannot plant ${newCrop.name}, plot (${row}, ${col}) is already occupied by ${cell.crop.name}. Current ID: '${currentCropId}'`;
-             // Only show alert in non-test mode
-             if (!this.testMode) this.addEvent(msg, true);
-             // Log at different levels depending on mode
-            this.logger.log(msg, this.testMode ? 3 : 1); // Make it VERBOSE in test mode if it happens after setup
+            // Only add event in non-test mode, but always log
+            if (!this.testMode) this.addEvent(msg, true);
+            this.logger.log(msg, 2);
             return false;
         }
 
+        // 4. Occupied Plot Check - *** ADD MORE LOGGING ***
+        const currentCropObj = cell.crop; // Get the crop object itself
+        const currentCropId = currentCropObj ? currentCropObj.id : 'error_cell.crop_null'; // Handle null case safely
+        const currentCropName = currentCropObj ? currentCropObj.name : 'error_cell.crop_null';
+
+        // *** Log the ID and type right before the check ***
+        // Use console.log for this debug step to ensure it appears even if logger levels change
+        console.log(`DEBUG plantCrop (${row},${col}): Checking plot occupancy. Current crop ID: '${currentCropId}' (Type: ${typeof currentCropId}), Name: '${currentCropName}'`);
+
+        if (currentCropId !== 'empty') { // Check against the literal string 'empty'
+            const msg = `Cannot plant ${newCrop.name}, plot (${row}, ${col}) is already occupied by ${currentCropName}. Current ID: '${currentCropId}'`;
+             if (!this.testMode) this.addEvent(msg, true);
+             // Log differently if this happens during setup vs later
+            const logLevel = (this.day === 1 && this.year === 1) ? 0 : (this.testMode ? 3 : 1); // ERROR if during setup, otherwise VERBOSE/INFO
+            this.logger.log(msg, logLevel);
+            console.log(`DEBUG plantCrop (${row},${col}): Occupancy check FAILED.`); // Explicit failure log
+            return false; // Return false because plot is not empty
+        }
+        // *** END EXTRA LOGGING ***
+
+
         // --- If all checks pass, proceed with planting ---
+        console.log(`DEBUG plantCrop (${row},${col}): Occupancy check PASSED. Proceeding.`); // Explicit success log
         this.balance -= plantingCost;
         // Pass the full crop data object to the cell's plant method
         if (cell.plant(newCrop)) {
              const msg = `Planted ${newCrop.name} at (${row}, ${col}). Cost: ${formatCurrency(plantingCost)}`;
-             // Don't show planting events in UI event log to avoid spam, but log for debug
-             // this.addEvent(msg);
              this.logger.log(msg, 2); // Log planting at DEBUG level
              if (this.ui) { this.ui.updateHUD(); this.ui.showCellInfo(row, col); }
              return true; // Success!
@@ -628,6 +638,7 @@ export class CaliforniaClimateFarmer {
              // If cell.plant fails internally (should be rare)
              this.balance += plantingCost; // Refund
              this.logger.log(`Internal cell.plant() method failed for ${newCrop.name} at (${row}, ${col})`, 0);
+             console.error(`Internal cell.plant() method failed for ${newCrop.name} at (${row}, ${col})`); // Console error too
              return false; // Internal cell failure
         }
     }
