@@ -23,12 +23,13 @@ const SUSTAINABILITY_SUBSIDY_BASE_MED = 6000;
 const SUSTAINABILITY_SUBSIDY_BASE_HIGH = 12000;
 
 const INITIAL_BALANCE = 225000;
-const PLANTING_COST_FACTOR = 0.10; // Keep planting cheap
-const DAILY_OVERHEAD_COST = 2; // Keep overhead minimal
+const PLANTING_COST_FACTOR = 0.10; // Keep planting cheap for now
+// ADJUSTED: Slightly increase overhead again
+const DAILY_OVERHEAD_COST = 4; // Was 2
 
-// ADJUSTED: Make actions MUCH cheaper
-const IRRIGATION_COST = 20; // Was 100
-const FERTILIZE_COST = 30; // Was 150
+// ADJUSTED: Increase action costs moderately
+const IRRIGATION_COST = 50; // Was 20 (Original was 200)
+const FERTILIZE_COST = 75; // Was 30 (Original was 300)
 // --- End Constants ---
 
 const DAYS_IN_YEAR = 360; // Define for clarity if using seasons of 90 days
@@ -655,25 +656,48 @@ export class CaliforniaClimateFarmer {
     }
 
     harvestCell(row, col) {
-         if (row < 0 || row >= this.gridSize || col < 0 || col >= this.gridSize) return false;
+         if (row < 0 || row >= this.gridSize || col < 0 || col >= this.gridSize) {
+             // Return an indicator of invalid coordinates or failure
+             return { success: false, reason: 'Invalid coordinates' };
+         }
         const cell = this.grid[row][col];
-        if (cell.crop.id === 'empty') { this.logger.log(`Attempted harvest on empty plot (${row}, ${col})`, 3); return false; }
-        if (!cell.harvestReady) { this.logger.log(`Attempted harvest on not-ready plot (${row}, ${col}), Crop: ${cell.crop.id}, Progress: ${cell.growthProgress}%`, 3); return false; }
+        if (cell.crop.id === 'empty') {
+            this.logger.log(`Attempted harvest on empty plot (${row}, ${col})`, 3);
+            return { success: false, reason: 'Empty plot' };
+        }
+        if (!cell.harvestReady) {
+            this.logger.log(`Attempted harvest on not-ready plot (${row}, ${col}), Crop: ${cell.crop.id}, Progress: ${cell.growthProgress}%`, 3);
+             return { success: false, reason: 'Not ready' };
+        }
 
         const marketPriceFactor = this.marketPrices[cell.crop.id] || 1.0;
-        const result = cell.harvest(this.waterReserve, marketPriceFactor); // Cell calculates yield and value
+        // Cell calculates yield and value, resets itself
+        const harvestData = cell.harvest(this.waterReserve, marketPriceFactor);
 
-        if (result.value === undefined || result.yieldPercentage === undefined) { this.logger.log(`ERROR: Harvest calculation failed for plot (${row}, ${col})`, 0); return false; }
-
-        if (result.value > 0) {
-             this.balance += result.value;
-             const msg = `Harvested ${result.cropName} at (${row}, ${col}) for ${formatCurrency(result.value)}. Yield: ${result.yieldPercentage}%`;
-             this.addEvent(msg); this.logger.log(msg, 2);
-        } else {
-             this.logger.log(`Harvested ${result.cropName} at (${row}, ${col}) yielded $0 (Yield: ${result.yieldPercentage}%). Plot reset.`, 2);
+        if (harvestData.value === undefined || harvestData.yieldPercentage === undefined) {
+             this.logger.log(`ERROR: Harvest calculation failed for plot (${row}, ${col})`, 0);
+             return { success: false, reason: 'Calculation error' };
         }
+
+        // *** CHANGE: Add income to balance HERE, AFTER getting result from cell ***
+        if (harvestData.value > 0) {
+             this.balance += harvestData.value;
+             // Log the individual harvest internally if needed (e.g., at VERBOSE level)
+             // this.logger.log(`Harvested ${harvestData.cropName} (${row},${col}) for ${formatCurrency(harvestData.value)}`, 3);
+        } else {
+             // this.logger.log(`Harvested ${harvestData.cropName} (${row},${col}) yielded $0`, 3);
+        }
+
+        // Update UI immediately after successful harvest and balance update
         if (this.ui) { this.ui.updateHUD(); this.ui.showCellInfo(row, col); }
-        return true;
+
+        // Return the result object for the strategy to aggregate
+        return {
+            success: true,
+            income: harvestData.value,
+            cropName: harvestData.cropName, // Pass name for potential logging
+            yieldPercentage: harvestData.yieldPercentage // Pass yield for potential logging
+        };
     }
 
     researchTechnology(techId) {
