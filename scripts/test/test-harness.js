@@ -4,7 +4,10 @@
  * Runs different farming strategies in a fast, headless simulation environment.
  */
 import { CaliforniaClimateFarmer } from '../game.js';
-import { setupTestStrategy } from './strategies.js'; // Assuming strategies.js is in the same folder
+import { setupTestStrategy } from './strategies.js';
+// *** ADDED formatCurrency ***
+import { formatCurrency } from '../utils.js';
+
 
 console.log('TestHarness module loading...');
 
@@ -57,7 +60,7 @@ export class TestHarness {
     }
 
     // Start the next test in the selected queue
-    async startNextTest() { // Make async if strategy setup needs it
+    async startNextTest() {
         this.currentTestIndex++;
 
         if (this.currentTestIndex >= this.selectedTests.length) {
@@ -71,48 +74,39 @@ export class TestHarness {
 
         if (!testInfo) {
              console.error(`Test definition not found for ID: ${testId}. Skipping.`);
-             // Skip to the next test recursively
              return this.startNextTest();
         }
 
 
         console.log(`\n--- Starting Test ${this.currentTestIndex + 1}/${this.selectedTests.length}: [${testInfo.name}] (ID: ${testId}) ---`);
 
-        // Clean up previous game instance if it exists (shouldn't strictly be necessary)
         this.activeGame = null;
 
         try {
-            // Create a NEW game instance in HEADLESS mode
             this.activeGame = new CaliforniaClimateFarmer({
-                headless: true,         // **** KEY CHANGE ****
-                testMode: true,         // Indicate a strategy is active
-                testStrategyId: testId, // Pass the ID for logging/setup
-                debugMode: false,       // Keep debug off for default runs to reduce noise
-                testEndYear: 50,        // Default end year
-                autoTerminate: true,    // Termination condition is checked in the loop below
-                nextTestCallback: () => this.startNextTest() // Pass the method to call when done
+                headless: true,
+                testMode: true,
+                testStrategyId: testId,
+                debugMode: false, // Keep default logging level low
+                testEndYear: 50,
+                autoTerminate: true,
+                nextTestCallback: () => this.startNextTest()
             });
 
-            // Apply the specific test strategy setup
-            // This now assigns the strategyTick function to the game instance
             setupTestStrategy(this.activeGame, testId);
 
-            // --- Headless Simulation Loop ---
             console.log(`Simulating test '${testId}' until Year ${this.activeGame.testEndYear} or Balance <= 0...`);
             const startTime = Date.now();
 
             while (this.activeGame.year < this.activeGame.testEndYear && this.activeGame.balance > 0) {
-                 // Check for manual interruption (e.g., via debugger) - basic version
-                 // if (some_global_stop_flag) break;
-
-                this.activeGame.runTick(); // Execute one simulation step
+                this.activeGame.runTick();
             }
 
             const endTime = Date.now();
             const durationMs = endTime - startTime;
             console.log(`Test '${testId}' simulation finished in ${durationMs} ms.`);
 
-            // Store final state for summary
+            // Store final state
             this.results[testId] = {
                 endYear: this.activeGame.year,
                 endBalance: this.activeGame.balance,
@@ -124,17 +118,13 @@ export class TestHarness {
                 durationMs: durationMs
             };
 
-            // Call terminateTest on the game instance to log detailed final results
-            // This will also trigger the nextTestCallback via setTimeout
             this.activeGame.terminateTest();
-            return true; // Test initiated (callback handles next)
+            return true;
 
         } catch (error) {
             console.error(`❌❌❌ Error running test ${testId}:`, error);
-            // Attempt to start the next test even if one fails
-            // Use setTimeout to avoid immediate recursion if error happens early
             setTimeout(() => this.startNextTest(), 50);
-            return false; // Test failed to start/run
+            return false;
         }
     }
 
@@ -145,9 +135,9 @@ export class TestHarness {
             return;
         }
         console.log(`\n🚀 Starting test run for ${this.selectedTests.length} selected tests...`);
-        this.currentTestIndex = -1; // Reset index before starting
-        this.results = {}; // Clear previous results
-        this.startNextTest(); // Start the first test
+        this.currentTestIndex = -1;
+        this.results = {};
+        this.startNextTest();
     }
 
     // Display a summary table of results
@@ -156,11 +146,12 @@ export class TestHarness {
         const summary = Object.entries(this.results).map(([id, result]) => ({
             ID: id,
             EndYear: result.endYear,
-            // Format balance and farm value
+            // *** CHANGE: Use formatCurrency ***
             Balance: formatCurrency(result.endBalance),
             FarmValue: formatCurrency(result.endFarmValue),
+            // *** END CHANGE ***
             Health: `${result.endFarmHealth}%`,
-            Water: `${result.endWaterReserve.toFixed(2)}%`, // Format water reserve
+            Water: `${result.endWaterReserve.toFixed(2)}%`,
             Sustain: `${result.endSustainability}%`,
             Techs: result.researchedTechs,
             Time: `${(result.durationMs / 1000).toFixed(2)}s`
