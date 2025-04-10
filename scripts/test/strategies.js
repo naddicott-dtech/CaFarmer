@@ -473,8 +473,8 @@ function updateWaterSavingStrategy(game) {
      }
 }
 
-// --- REVISED DecisionRule Strategy (Tiered Research Costs) ---
-// Goal: Allow early research of cheap tech, delay expensive tech until more stable.
+// --- REVISED DecisionRule Strategy (Tiered Research Costs & Reduced Logging) ---
+// Goal: Allow early research of cheap tech, delay expensive tech, reduce log noise.
 function updateDecisionRuleStrategy(game) {
     // Check actions less frequently than every tick
     if (game.day % 5 !== 0) return;
@@ -485,19 +485,17 @@ function updateDecisionRuleStrategy(game) {
     const IRRIGATION_RESERVE_THRESHOLD = 30;
     const FERTILIZE_SOIL_HEALTH_THRESHOLD = 55;
     const RESEARCH_CHECK_FREQUENCY_DAYS = 30;
-    const MIN_BALANCE_TO_CONSIDER_RESEARCH = 40000; // Minimum needed to even *look* at tech list
+    const MIN_BALANCE_TO_CONSIDER_RESEARCH = 40000;
 
-    // *** Tiered Research Requirements ***
     const CHEAP_TECH_COST_LIMIT = 25000;
-    const CHEAP_TECH_BUFFER = 10000; // Buffer for techs costing <= CHEAP_TECH_COST_LIMIT
+    const CHEAP_TECH_BUFFER = 10000;
 
     const MEDIUM_TECH_COST_LIMIT = 45000;
-    const MEDIUM_TECH_BUFFER = 25000; // Buffer for techs costing > CHEAP_TECH_COST_LIMIT and <= MEDIUM_TECH_COST_LIMIT
-    const MEDIUM_TECH_MIN_BALANCE = 80000; // Also require this total balance for medium tech
+    const MEDIUM_TECH_BUFFER = 25000;
+    const MEDIUM_TECH_MIN_BALANCE = 80000;
 
-    const EXPENSIVE_TECH_BUFFER = 50000; // Buffer for techs costing > MEDIUM_TECH_COST_LIMIT
-    const EXPENSIVE_TECH_MIN_BALANCE = 120000; // Also require this higher total balance for expensive tech
-    // ***********************************
+    const EXPENSIVE_TECH_BUFFER = 50000;
+    const EXPENSIVE_TECH_MIN_BALANCE = 120000;
 
     const HIGH_WATER_COST_THRESHOLD = 15;
     const LOW_WATER_RESERVE_THRESHOLD = 50;
@@ -526,6 +524,7 @@ function updateDecisionRuleStrategy(game) {
             }
         }
     }
+    // --- Keep Harvest Summary at Level 1 ---
     if (harvestedCount > 0) {
         game.logger.log(`HARVEST SUMMARY: Harvested ${harvestedCount} plots for ${formatCurrency(totalHarvestIncome)}. New Bal: ${formatCurrency(game.balance)}`, 1);
     }
@@ -548,11 +547,19 @@ function updateDecisionRuleStrategy(game) {
                 if (!bestCropId || maxPriceFactor < PLANTING_PRICE_FACTOR_THRESHOLD) {
                     const cropIndex = (row * game.gridSize + col + Math.floor(game.day / 5)) % availableCropIds.length;
                     bestCropId = availableCropIds[cropIndex];
+                    // *** Increase log level for routine decision detail ***
+                    // game.logger.log(`DecisionRule planting diverse (${bestCropId}) at (${row},${col}) due to low market prices (Best factor: ${maxPriceFactor.toFixed(2)})`, 4);
                 }
                 const cropToPlantData = getCropById(bestCropId);
                 const plantCost = cropToPlantData ? Math.round(cropToPlantData.basePrice * game.plantingCostFactor) : Infinity;
                 if (game.balance >= plantCost) {
-                    if (game.plantCrop(row, col, bestCropId)) planted++;
+                    if (game.plantCrop(row, col, bestCropId)) {
+                         planted++;
+                        // *** Increase log level for routine decision detail ***
+                         // if (maxPriceFactor >= PLANTING_PRICE_FACTOR_THRESHOLD) {
+                         //     game.logger.log(`DecisionRule planted ${bestCropId} at (${row},${col}) chasing market (Factor: ${maxPriceFactor.toFixed(2)})`, 4);
+                         // }
+                    }
                 }
             }
             // 2. Irrigate if needed
@@ -569,6 +576,7 @@ function updateDecisionRuleStrategy(game) {
             }
         }
     }
+     // --- Keep Tick Summary at Level 2 (less verbose than individual actions) ---
      if(planted > 0 || irrigated > 0 || fertilized > 0) {
          game.logger.log(`DecisionRule Tick Actions: P:${planted}, I:${irrigated}, F:${fertilized}. Bal: ${formatCurrency(game.balance)}`, 2);
      }
@@ -579,17 +587,18 @@ function updateDecisionRuleStrategy(game) {
         if (game.balance < MIN_BALANCE_TO_CONSIDER_RESEARCH) {
              // Skip evaluation entirely if below absolute minimum
         } else {
-             game.logger.log(`DecisionRule: Evaluating research. Bal: ${formatCurrency(game.balance)}`, 2);
+             // *** Increase log level for routine evaluation start ***
+             // game.logger.log(`DecisionRule: Evaluating research. Bal: ${formatCurrency(game.balance)}`, 3);
              const researchQueue = [
-                 { id: 'drip_irrigation', category: 'water', cost: game.getTechnologyCost('drip_irrigation') },         // Medium
-                 { id: 'no_till_farming', category: 'soil', cost: game.getTechnologyCost('no_till_farming') },         // Cheap
-                 { id: 'soil_sensors', category: 'efficiency', cost: game.getTechnologyCost('soil_sensors') },      // Cheap
-                 { id: 'drought_resistant', category: 'water', cost: game.getTechnologyCost('drought_resistant') },   // Medium
-                 { id: 'precision_drones', category: 'efficiency', cost: game.getTechnologyCost('precision_drones') }, // Medium
-                 { id: 'silvopasture', category: 'soil', cost: game.getTechnologyCost('silvopasture') },         // Medium
-                 { id: 'ai_irrigation', category: 'water', cost: game.getTechnologyCost('ai_irrigation') },        // Expensive
-                 { id: 'renewable_energy', category: 'cost', cost: game.getTechnologyCost('renewable_energy') },    // Expensive
-                 { id: 'greenhouse', category: 'protection', cost: game.getTechnologyCost('greenhouse') }          // Medium? Check cost, adjust if needed
+                 { id: 'drip_irrigation', category: 'water', cost: game.getTechnologyCost('drip_irrigation') },
+                 { id: 'no_till_farming', category: 'soil', cost: game.getTechnologyCost('no_till_farming') },
+                 { id: 'soil_sensors', category: 'efficiency', cost: game.getTechnologyCost('soil_sensors') },
+                 { id: 'drought_resistant', category: 'water', cost: game.getTechnologyCost('drought_resistant') },
+                 { id: 'precision_drones', category: 'efficiency', cost: game.getTechnologyCost('precision_drones') },
+                 { id: 'silvopasture', category: 'soil', cost: game.getTechnologyCost('silvopasture') },
+                 { id: 'ai_irrigation', category: 'water', cost: game.getTechnologyCost('ai_irrigation') },
+                 { id: 'renewable_energy', category: 'cost', cost: game.getTechnologyCost('renewable_energy') },
+                 { id: 'greenhouse', category: 'protection', cost: game.getTechnologyCost('greenhouse') }
              ].filter(t => t.cost > 0);
 
              const isWaterConcern = game.waterReserve < LOW_WATER_RESERVE_THRESHOLD || currentIrrigationCost > HIGH_WATER_COST_THRESHOLD;
@@ -607,19 +616,17 @@ function updateDecisionRuleStrategy(game) {
                          let requiredBuffer = 0;
                          let requiredMinBalance = 0;
 
-                         // *** Determine financial requirements based on cost tier ***
                          if (cost <= CHEAP_TECH_COST_LIMIT) {
                              requiredBuffer = CHEAP_TECH_BUFFER;
-                             requiredMinBalance = MIN_BALANCE_TO_CONSIDER_RESEARCH; // Can research cheap tech as soon as we consider
+                             requiredMinBalance = MIN_BALANCE_TO_CONSIDER_RESEARCH;
                          } else if (cost <= MEDIUM_TECH_COST_LIMIT) {
                              requiredBuffer = MEDIUM_TECH_BUFFER;
                              requiredMinBalance = MEDIUM_TECH_MIN_BALANCE;
-                         } else { // Expensive tech
+                         } else {
                              requiredBuffer = EXPENSIVE_TECH_BUFFER;
                              requiredMinBalance = EXPENSIVE_TECH_MIN_BALANCE;
                          }
 
-                         // *** Check if affordable based on tier requirements ***
                          if (game.balance >= requiredMinBalance && game.balance >= (cost + requiredBuffer)) {
                             let priorityScore = 0;
                             if (techInfo.category === 'water' && isWaterConcern) priorityScore = 1;
@@ -634,7 +641,8 @@ function updateDecisionRuleStrategy(game) {
                                     id: techInfo.id,
                                     cost: cost,
                                     priority: priorityScore,
-                                    reason: `Priority ${priorityScore}${isWaterConcern && priorityScore === 1 ? ' (Water Concern)' : ''}${isSoilConcern && priorityScore === 2 ? ' (Soil Concern)' : ''} [Tier Req: Bal >= ${formatCurrency(requiredMinBalance)}, Buffer: ${formatCurrency(requiredBuffer)}]`
+                                    // *** Removed reason from object to simplify, keep log below if needed ***
+                                    // reason: `Priority ${priorityScore}${isWaterConcern && priorityScore === 1 ? ' (Water Concern)' : ''}${isSoilConcern && priorityScore === 2 ? ' (Soil Concern)' : ''} [Tier Req: Bal >= ${formatCurrency(requiredMinBalance)}, Buffer: ${formatCurrency(requiredBuffer)}]`
                                 };
                             }
                          }
@@ -644,16 +652,19 @@ function updateDecisionRuleStrategy(game) {
 
              // Research the best option found
              if (bestTechToResearch) {
-                 game.logger.log(`DecisionRule wants to research ${bestTechToResearch.id} (${bestTechToResearch.reason}). Cost: ${formatCurrency(bestTechToResearch.cost)}, Balance: ${formatCurrency(game.balance)}`, 2);
+                 // --- Keep "wants to research" log at level 2 ---
+                 game.logger.log(`DecisionRule wants to research ${bestTechToResearch.id} (Prio: ${bestTechToResearch.priority}). Cost: ${formatCurrency(bestTechToResearch.cost)}, Balance: ${formatCurrency(game.balance)}`, 2);
                  if (game.researchTechnology(bestTechToResearch.id)) {
                      researched++;
+                     // --- Keep "researched" log at critical level 1 ---
                      game.logger.log(`DecisionRule researched: ${bestTechToResearch.id}`, 1);
-                     // break; // Ensure only one research per cycle if desired (already implicitly happens as we select only the best)
                  } else {
+                     // --- Keep failure log at critical level 0 ---
                      game.logger.log(`DecisionRule: Research attempt for ${bestTechToResearch.id} failed unexpectedly.`, 0);
                  }
              } else if (game.balance >= MIN_BALANCE_TO_CONSIDER_RESEARCH) {
-                  game.logger.log(`DecisionRule: Sufficient balance but no suitable/affordable tech found this cycle based on tiered requirements.`, 2);
+                  // *** Increase log level for non-critical info ***
+                  game.logger.log(`DecisionRule: Sufficient balance but no suitable/affordable tech found this cycle.`, 3);
              }
         } // End if balance > minimum to consider
     } // End research check block
