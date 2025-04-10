@@ -473,7 +473,7 @@ function updateWaterSavingStrategy(game) {
      }
 }
 
-// --- ADDED DecisionRule Strategy ---
+// --- UPDATED DecisionRule Strategy ---
 function updateDecisionRuleStrategy(game) {
     // Check actions less frequently than every tick
     if (game.day % 5 !== 0) return;
@@ -484,7 +484,7 @@ function updateDecisionRuleStrategy(game) {
 
     const availableCrops = crops.filter(c => c.id !== 'empty');
     const availableCropIds = availableCrops.map(c => c.id);
-    if (availableCropIds.length === 0) return; // Should not happen
+    if (availableCropIds.length === 0) return;
 
     const irrigationCost = game.irrigationCost;
     const fertilizeCost = game.fertilizeCost;
@@ -498,7 +498,7 @@ function updateDecisionRuleStrategy(game) {
                     harvestedCount++;
                     totalHarvestIncome += harvestResult.income;
                 }
-                // Note: Plot is now empty for the next loop
+                // No specific failure log here unless needed
             }
         }
     }
@@ -513,16 +513,14 @@ function updateDecisionRuleStrategy(game) {
 
             // 1. Plant if empty
             if (cell.crop.id === 'empty') {
-                // Choose crop based on simple logic (e.g., market price > 1.0?)
                 let bestCropId = null;
-                let maxPriceFactor = 0.9; // Only plant if price is decent
+                let maxPriceFactor = 0.9;
                 availableCropIds.forEach(id => {
                     if (game.marketPrices[id] > maxPriceFactor) {
                          maxPriceFactor = game.marketPrices[id];
                          bestCropId = id;
                     }
                 });
-                // Fallback to rotation if no prices are > 0.9
                 if (!bestCropId) {
                     const cropIndex = (row * game.gridSize + col + Math.floor(game.day / 5)) % availableCropIds.length;
                     bestCropId = availableCropIds[cropIndex];
@@ -533,7 +531,7 @@ function updateDecisionRuleStrategy(game) {
                 if (game.balance >= plantCost) {
                     if (game.plantCrop(row, col, bestCropId)) {
                         planted++;
-                        game.logger.log(`DecisionRule planted ${bestCropId} at (${row},${col}) (Price Factor: ${maxPriceFactor.toFixed(2)})`, 3); // VERBOSE
+                        game.logger.log(`DecisionRule planted ${bestCropId} at (${row},${col}) (Price Factor: ${maxPriceFactor.toFixed(2)})`, 3);
                     }
                 }
             }
@@ -542,7 +540,7 @@ function updateDecisionRuleStrategy(game) {
                 if (game.balance >= irrigationCost) {
                     if (game.irrigateCell(row, col)) {
                         irrigated++;
-                         game.logger.log(`DecisionRule irrigated (${row},${col})`, 3); // VERBOSE
+                         game.logger.log(`DecisionRule irrigated (${row},${col})`, 3);
                     }
                 }
             }
@@ -551,68 +549,74 @@ function updateDecisionRuleStrategy(game) {
                  if (game.balance >= fertilizeCost) {
                      if (game.fertilizeCell(row, col)) {
                          fertilized++;
-                          game.logger.log(`DecisionRule fertilized (${row},${col})`, 3); // VERBOSE
+                          game.logger.log(`DecisionRule fertilized (${row},${col})`, 3);
                      }
                  }
             }
         }
     }
      if(planted || irrigated || fertilized) {
-         game.logger.log(`DecisionRule Tick Actions: P:${planted}, I:${irrigated}, F:${fertilized}. Bal: ${formatCurrency(game.balance)}`, 3); // VERBOSE
+         game.logger.log(`DecisionRule Tick Actions: P:${planted}, I:${irrigated}, F:${fertilized}. Bal: ${formatCurrency(game.balance)}`, 3);
      }
 
     // --- Research Logic (Check every 30 days) ---
     if (game.day % 30 === 0) {
-        const researchBuffer = 25000; // Keep a reasonable buffer
-        const researchQueue = [
-             { id: 'soil_sensors', category: 'efficiency' },
-             { id: 'drip_irrigation', category: 'water' },
-             { id: 'no_till_farming', category: 'soil' },
-             { id: 'drought_resistant', category: 'water' },
-             { id: 'precision_drones', category: 'efficiency' },
-             { id: 'ai_irrigation', category: 'water' },
-             { id: 'silvopasture', category: 'soil' },
-             { id: 'renewable_energy', category: 'cost' },
-             { id: 'greenhouse', category: 'protection' }
-        ];
+        const researchBuffer = 25000;
+        // *** CHANGE: Added minimum balance threshold for ANY research ***
+        const minimumBalanceForResearch = 80000;
 
-        for (const techInfo of researchQueue) {
-             const tech = game.technologies.find(t => t.id === techInfo.id);
-             if (tech && !tech.researched) {
-                 const cost = game.getTechnologyCost(techInfo.id);
-                 const prereqsMet = checkTechPrerequisites(tech, game.researchedTechs);
+        if (game.balance < minimumBalanceForResearch) {
+             game.logger.log(`DecisionRule: Balance ${formatCurrency(game.balance)} too low, skipping research cycle. Need > ${formatCurrency(minimumBalanceForResearch)}`, 2); // DEBUG level
+        } else {
+             // *** CHANGE: Reordered queue - cheaper/foundational first ***
+             const researchQueue = [
+                 { id: 'drip_irrigation', category: 'water' },         // Cheap, high impact
+                 { id: 'no_till_farming', category: 'soil' },          // Cheap, high impact
+                 { id: 'soil_sensors', category: 'efficiency' },     // Cheap, enables others
+                 { id: 'drought_resistant', category: 'water' },      // Mid-cost, high impact if needed
+                 { id: 'precision_drones', category: 'efficiency' }, // Mid-cost
+                 { id: 'silvopasture', category: 'soil' },           // Mid-cost
+                 { id: 'ai_irrigation', category: 'water' },        // Expensive, needs prereqs
+                 { id: 'greenhouse', category: 'protection' },     // Expensive
+                 { id: 'renewable_energy', category: 'cost' }        // Expensive
+             ];
+             // *** END CHANGE ***
 
-                 let shouldResearch = false;
-                 if (prereqsMet && game.balance >= (cost + researchBuffer)) {
-                    // Priority: Water tech if reserve < 40% OR drought probability high
-                    if (techInfo.category === 'water' && (game.waterReserve < 40 || game.climate.droughtProbability > 0.15)) {
-                        shouldResearch = true;
-                    }
-                    // Next: Soil tech if health < 50%
-                    else if (techInfo.category === 'soil' && game.farmHealth < 50) {
-                        shouldResearch = true;
-                    }
-                    // Default: Research others if conditions allow and no urgent need
-                    else if (!shouldResearch && techInfo.category !== 'water' && techInfo.category !== 'soil') {
-                        shouldResearch = true;
-                    }
-                 }
+             for (const techInfo of researchQueue) {
+                 const tech = game.technologies.find(t => t.id === techInfo.id);
+                 if (tech && !tech.researched) {
+                     const cost = game.getTechnologyCost(techInfo.id);
+                     const prereqsMet = checkTechPrerequisites(tech, game.researchedTechs);
 
-                 if (shouldResearch) {
-                     if (game.researchTechnology(techInfo.id)) {
-                         researched++;
-                         game.logger.log(`DecisionRule researched: ${techInfo.id}`, 1); // INFO level
-                         break; // Only one research action per check
+                     let shouldResearch = false;
+                     // *** CHANGE: Check buffer AND minimum balance ***
+                     if (prereqsMet && game.balance >= (cost + researchBuffer)) {
+                         // Keep simple conditional priority for now
+                         if (techInfo.category === 'water' && (game.waterReserve < 40 || game.climate.droughtProbability > 0.15)) {
+                             shouldResearch = true;
+                         } else if (techInfo.category === 'soil' && game.farmHealth < 50) {
+                             shouldResearch = true;
+                         } else if (!shouldResearch && techInfo.category !== 'water' && techInfo.category !== 'soil') {
+                             shouldResearch = true;
+                         }
                      }
-                 } else if (prereqsMet && game.balance < (cost + researchBuffer)) {
-                      game.logger.log(`DecisionRule wants ${techInfo.id} ($${cost}) but cannot afford ($${game.balance} < $${cost + researchBuffer})`, 3); // VERBOSE
-                      // Consider breaking if it's a high-priority category? For now, continue checking cheaper options.
+                     // *** END CHANGE ***
+
+                     if (shouldResearch) {
+                         if (game.researchTechnology(techInfo.id)) {
+                             researched++;
+                             game.logger.log(`DecisionRule researched: ${techInfo.id}`, 1);
+                             break; // Only one research action per check
+                         }
+                     } else if (prereqsMet && game.balance < (cost + researchBuffer)) {
+                          game.logger.log(`DecisionRule wants ${techInfo.id} ($${cost}) but cannot afford ($${game.balance} < $${cost + researchBuffer})`, 3);
+                     }
                  }
              }
-        }
-    }
-    if (researched > 0) {
-         game.logger.log(`DecisionRule Researched ${researched} tech(s) this cycle.`, 2); // DEBUG
-    }
+             if (researched > 0) {
+                 game.logger.log(`DecisionRule Researched ${researched} tech(s) this cycle.`, 2);
+             }
+        } // End if balance > minimum
+    } // End research check block
 }
 // -----------------------------------
