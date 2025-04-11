@@ -591,61 +591,50 @@ h2 {
 /* === BULK SELECTION STYLES === */
 
 .row-selectors, .column-selectors {
-    position: absolute;
+    position: absolute; /* Required for JS positioning */
     display: flex;
-    z-index: 50;
+    z-index: 50; /* Ensure they are above the canvas */
+    /* Remove fixed width/height from here if set previously */
+    /* Let JS set width/height */
 }
 
 /* --- Selector Alignment --- */
 .row-selectors {
-    position: absolute; /* Keep if it was there */
-    display: flex;
     flex-direction: column;
-    justify-content: space-around; /* Distribute buttons vertically */
-    align-items: center;
-    /* Remove transform: translateY(-50%); if present */
-    /* Positioning is handled by JS (_updateSelectorPositions) */
-    height: auto; /* Height will be set by JS */
+    justify-content: space-around; /* Distribute buttons evenly along the column */
+    align-items: center; /* Center buttons horizontally in the narrow container */
+    /* Left/Top/Height set by JS */
 }
 
 .column-selectors {
-    position: absolute; /* Keep if it was there */
-    display: flex;
     flex-direction: row;
-    justify-content: space-around; /* Distribute buttons horizontally */
-    align-items: center;
-    /* Remove transform: translateX(-50%); if present */
-    /* Positioning is handled by JS (_updateSelectorPositions) */
-    width: auto; /* Width will be set by JS */
+    justify-content: space-around; /* Distribute buttons evenly along the row */
+    align-items: center; /* Center buttons vertically in the narrow container */
+     /* Left/Top/Width set by JS */
 }
 
 /* Optional: Ensure buttons don't shrink too much */
 .selector-btn {
-    /* Keep existing styles */
-    background: rgba(42, 157, 143, 0.7);
+    /* Keep base styles */
+    background: rgba(42, 157, 143, 0.8);
     color: white;
-    width: 20px; /* Base size, JS might override */
-    height: 20px; /* Base size, JS might override */
-    display: flex;
+    width: 20px; /* Define a fixed size */
+    height: 20px;
+    display: flex; /* Keep for centering text */
     align-items: center;
     justify-content: center;
-    margin: 1px;
+    margin: 1px; /* Small margin between buttons */
     border-radius: 3px;
     cursor: pointer;
-    font-size: 10px; /* Base size, JS might override */
+    font-size: 10px;
     font-weight: bold;
     border: none;
-    line-height: 1; /* Ensure text centers vertically */
-    flex-shrink: 0; /* Prevent buttons from shrinking in flex container */
+    line-height: 1;
+    flex-shrink: 0; /* Prevent shrinking */
 }
 
-.selector-btn:hover {
-    background: rgba(42, 157, 143, 1);
-}
-
-.selector-btn.active {
-    background: #e76f51;
-}
+ .selector-btn:hover { background: rgba(42, 157, 143, 1); }
+ .selector-btn.active { background: var(--danger-color); }
 
 .bulk-action-panel {
     display: none;
