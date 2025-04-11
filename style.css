@@ -591,50 +591,49 @@ h2 {
 /* === BULK SELECTION STYLES === */
 
 .row-selectors, .column-selectors {
-    position: absolute; /* Required for JS positioning */
+    position: absolute;
     display: flex;
-    z-index: 50; /* Ensure they are above the canvas */
+    z-index: 50;
+    padding: 0; /* Ensure no padding */
+    margin: 0; /* Ensure no margin */
+    box-sizing: border-box; /* Ensure padding/border included in width/height */
     /* Remove fixed width/height from here if set previously */
-    /* Let JS set width/height */
 }
 
-/* --- Selector Alignment --- */
 .row-selectors {
     flex-direction: column;
-    justify-content: space-around; /* Distribute buttons evenly along the column */
-    align-items: center; /* Center buttons horizontally in the narrow container */
+    justify-content: space-around; /* Distribute buttons evenly */
+    align-items: center; /* Center buttons horizontally */
     /* Left/Top/Height set by JS */
 }
 
 .column-selectors {
     flex-direction: row;
-    justify-content: space-around; /* Distribute buttons evenly along the row */
-    align-items: center; /* Center buttons vertically in the narrow container */
+    justify-content: space-around; /* Distribute buttons evenly */
+    align-items: center; /* Center buttons vertically */
      /* Left/Top/Width set by JS */
 }
 
-/* Optional: Ensure buttons don't shrink too much */
 .selector-btn {
-    /* Keep base styles */
+    /* Keep existing styles */
     background: rgba(42, 157, 143, 0.8);
     color: white;
-    width: 20px; /* Define a fixed size */
+    width: 20px; /* Fixed size */
     height: 20px;
-    display: flex; /* Keep for centering text */
+    display: flex;
     align-items: center;
     justify-content: center;
-    margin: 1px; /* Small margin between buttons */
+    /* margin: 1px; */ /* Remove margin if space-around is handling it */
     border-radius: 3px;
     cursor: pointer;
     font-size: 10px;
     font-weight: bold;
     border: none;
     line-height: 1;
-    flex-shrink: 0; /* Prevent shrinking */
+    flex-shrink: 0;
 }
-
- .selector-btn:hover { background: rgba(42, 157, 143, 1); }
- .selector-btn.active { background: var(--danger-color); }
+.selector-btn:hover { background: rgba(42, 157, 143, 1); }
+.selector-btn.active { background: var(--danger-color); }
 
 .bulk-action-panel {
     display: none;
