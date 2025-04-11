@@ -500,41 +500,34 @@ export class UIManager {
            else { console.error("Game method for action", actionType, "is not valid."); }
     }
 
+// Inside ui.js -> UIManager class
     _updateSelectorPositions(offsetX, offsetY) {
         const rowSelectors = this.canvas.parentElement?.querySelector('.row-selectors');
         const colSelectors = this.canvas.parentElement?.querySelector('.column-selectors');
         if (!rowSelectors || !colSelectors || !this.game || this.cellSize <= 0 || this.game.gridSize <= 0) {
-             // Keep the warning, it might still happen initially but should recover
              console.warn(`Skipping selector position update. State: game=${!!this.game}, cellSize=${this.cellSize}, gridSize=${this.game?.gridSize}`);
             return;
         }
 
         const gridHeight = this.cellSize * this.game.gridSize;
         const gridWidth = this.cellSize * this.game.gridSize;
-        const selectorWidth = 24; // Use a fixed width approx based on CSS
-        const selectorHeight = 24;// Use a fixed height approx based on CSS
-        const margin = 5; // Margin between grid and selectors
+        // Use a fixed size for calculation, matching CSS potentially
+        const buttonSize = 20;
+        const margin = 5;
 
         // --- Row Selectors ---
-        // Position container just LEFT of the grid
         rowSelectors.style.position = 'absolute';
-        rowSelectors.style.left = `${offsetX - selectorWidth - margin}px`; // Position left edge
-        rowSelectors.style.top = `${offsetY}px`; // Align top edge with grid
+        rowSelectors.style.width = `${buttonSize}px`; // Set container width
         rowSelectors.style.height = `${gridHeight}px`; // Match grid height
-        rowSelectors.style.width = `${selectorWidth}px`; // Set explicit width
-        // CSS (.row-selectors) should handle the flex display and vertical distribution
+        rowSelectors.style.left = `${offsetX - buttonSize - margin}px`; // Position left edge
+        rowSelectors.style.top = `${offsetY}px`; // Align top edge
 
         // --- Column Selectors ---
-        // Position container just ABOVE the grid
         colSelectors.style.position = 'absolute';
-        colSelectors.style.top = `${offsetY - selectorHeight - margin}px`; // Position top edge
-        colSelectors.style.left = `${offsetX}px`; // Align left edge with grid
         colSelectors.style.width = `${gridWidth}px`; // Match grid width
-        colSelectors.style.height = `${selectorHeight}px`; // Set explicit height
-        // CSS (.column-selectors) should handle the flex display and horizontal distribution
-
-        // --- Remove dynamic button resizing for now ---
-        // document.querySelectorAll('.selector-btn').forEach(btn => { ... });
+        colSelectors.style.height = `${buttonSize}px`; // Set container height
+        colSelectors.style.left = `${offsetX}px`; // Align left edge
+        colSelectors.style.top = `${offsetY - buttonSize - margin}px`; // Position top edge
 
         console.log(`Updated Selector Pos: Row Left=${rowSelectors.style.left}, Col Top=${colSelectors.style.top}`);
     }
