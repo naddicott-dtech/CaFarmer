@@ -14,76 +14,115 @@ import * as Events from './events.js';
 // Main game class
 export class CaliforniaClimateFarmer {
     constructor(options = {}) {
-        // Test mode flags (only used if test mode is enabled)
+        // --- Options Processing ---
+        this.headless = options.headless || false;
+        this.debugMode = options.debugMode || (options.headless ? false : true); // Default debug ON for UI, OFF for headless
+
         this.testMode = options.testMode || false;
-        this.testStrategy = options.testStrategy || null;
-        this.debugMode = options.debugMode || false;
+        this.testStrategyId = options.testStrategyId || null;
         this.testEndYear = options.testEndYear || 50;
         this.autoTerminate = options.autoTerminate || false;
         this.nextTestCallback = options.nextTestCallback || null;
+        this.strategyTick = null; // Hook for test strategies
 
-        // Farm dimensions
+        // --- Core Game State ---
         this.gridSize = 10;
-        this.cellSize = 40;
-
-        // Base game state
+        this.cellSize = 40; // UI concerns, but needed for some calcs potentially
         this.day = 1;
         this.year = 1;
         this.season = 'Spring';
-        this.seasonDay = 1;
-        this.balance = 100000;
-        this.farmValue = 250000;
-        this.farmHealth = 85;
+        this.dayOfYear = 1; // Track day within the year for simpler event scheduling/checks
+        this.balance = INITIAL_BALANCE;
+        // farmValue and farmHealth are calculated, initialize reasonably
+        this.farmValue = 50000;
+        this.farmHealth = 80;
         this.waterReserve = 75;
         this.paused = false;
-        this.speed = 5;
-        this.currentOverlay = 'crop';
+        this.speed = 5; // Initial speed multiplier
+        this.currentOverlay = 'crop'; // Default UI overlay
 
-        // Debug logging
-        this.logger = new Logger(100, this.debugMode ? 2 : 1);
+        // --- Game Parameters ---
+        this.interestRate = ANNUAL_INTEREST_RATE;
+        this.plantingCostFactor = PLANTING_COST_FACTOR;
+        this.irrigationCost = IRRIGATION_COST;
+        this.fertilizeCost = FERTILIZE_COST;
+        this.dailyOverheadCost = DAILY_OVERHEAD_COST; // Renamed for clarity
 
-        // Game grid
+        // --- Logging ---
+        // Adjust verbosity: Headless default quiet (1), UI default info (2) unless debugMode overrides
+        const defaultVerbosity = this.headless ? 1 : 2;
+        const loggerVerbosity = this.debugMode ? 3 : defaultVerbosity; // Debug mode enables level 3
+        this.logger = new Logger(200, loggerVerbosity, this.headless);
+
+        // --- Data Structures ---
         this.grid = [];
-
-        // Technology/Research
         this.technologies = createTechnologyTree();
-        this.researchedTechs = [];
+        this.researchedTechs = []; // Array of tech IDs
+        this.events = []; // Log for UI display
+        this.pendingEvents = []; // Events scheduled to occur
+        this.marketPrices = {}; // Stores current price multipliers { cropId: factor }
 
-        // Events
-        this.events = [];
-        this.pendingEvents = [];
-
-        // Market prices
-        this.marketPrices = {};
-
-        // Climate parameters
+        // --- Climate ---
         this.climate = {
-            avgTemp: 70,
-            rainfall: 20,
-            droughtProbability: 0.05,
-            floodProbability: 0.03,
-            heatwaveProbability: 0.08
+            baseTemp: 70, // Base temperature for calculations if needed
+            rainfallChance: 0.15, // Base daily chance
+            droughtProbability: 0.05, // Base seasonal chance
+            floodProbability: 0.03, // Base seasonal chance
+            heatwaveProbability: 0.08, // Base seasonal chance
+            frostChanceWinter: 0.20, // Base daily chance in Winter
+            frostChanceSpringFall: 0.05 // Base daily chance in Spring/Fall
         };
 
-        // Initialize the farm grid
-        this.initializeGrid();
+        // --- Event Cooldown Tracking ---
+        this.lastDroughtEndDay = -Infinity;
+        this.lastHeatwaveEndDay = -Infinity;
+        this.lastFrostDay = -Infinity;
 
-        // Initialize market prices
-        this.updateMarketPrices();
+        // --- INITIALIZE CORE COMPONENTS ---
+        this.initializeGrid();          // Create the grid array and Cell objects
+        this.updateMarketPrices(true); // Initialize market prices (true indicates initial setup)
+        this.farmValue = calculateFarmValue(this.grid, this.technologies); // Initial value calculation
+        this.farmHealth = calculateFarmHealth(this.grid, this.waterReserve); // Initial health calculation
 
-        // Set up the game loop
-        this.lastUpdateTime = 0;
-        this.updateInterval = 1000 / this.speed;
 
-        // Initialize UI manager
-        this.ui = new UIManager(this);
+        // --- UI Initialization (Conditional) ---
+        this.ui = null;
+        if (!this.headless) {
+            // Ensure this runs after the DOM is ready
+            if (typeof window !== 'undefined') {
+                const initUI = () => {
+                     console.log("Attempting UIManager creation...");
+                     try {
+                        this.ui = new UIManager(this);
+                        console.log("UIManager instance created successfully.");
+                        // If game shouldn't auto-start, remove this call maybe?
+                        // Check if start needs to be called from main.js instead
+                        // this.start(); // Let main.js call start() after button click
+                     } catch (error) {
+                         console.error("Error creating UIManager:", error);
+                         // Display error to user?
+                         document.body.innerHTML = `<h2>UI Initialization Failed</h2><p>${error.message}</p>`;
+                     }
+                };
 
-        // Initialize test mode if active
-        if (this.testMode) {
-            this.setupTestMode();
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', initUI);
+                } else {
+                    initUI(); // DOM already loaded
+                }
+            }
+        } else {
+            this.logger.log('Running in Headless Mode - UI not initialized.');
         }
-    }
 
+        // --- Game Loop Timing ---
+        this.lastUpdateTime = 0; // Set when loop starts
+        this.updateInterval = 1000 / this.speed;
+        this.animationFrameId = null;
+
+        this.logger.log(`Game initialized. Headless: ${this.headless}, TestMode: ${this.testMode}`, 1);
+    } // End constructor
+    
     // Initialize the farm grid
     initializeGrid() {
         for (let row = 0; row < this.gridSize; row++) {
