@@ -22,126 +22,120 @@ body {
     background-color: var(--bg-color);
     color: var(--text-color);
     line-height: 1.6;
-    /* Prevent body scrollbars if possible */
-    overflow: hidden;
+    overflow: hidden; /* Prevent body scrollbars */
 }
 
 .container {
-    max-width: 1600px; /* Allow a bit wider */
+    max-width: 1600px;
     margin: 0 auto;
     padding: 1rem;
     display: flex;
     flex-direction: column;
-    height: 100vh; /* Full viewport height */
+    height: 100vh;
 }
 
 header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.5rem 0; /* Reduced padding */
-    margin-bottom: 0.5rem; /* Reduced margin */
-    flex-shrink: 0; /* Prevent header from shrinking */
+    padding: 0.5rem 0;
+    margin-bottom: 0.5rem;
+    flex-shrink: 0;
 }
 
 h1 {
     color: var(--dark-color);
-    font-size: 1.6rem; /* Slightly smaller */
+    font-size: 1.6rem;
 }
 
 .main-content {
     display: flex;
-    flex: 1; /* Allow main content to fill remaining space */
+    flex: 1;
     gap: 1rem;
-    overflow: hidden; /* Prevent content overflow */
+    overflow: hidden;
 }
 
 /* --- Grid & Selector Layout --- */
 .farm-grid-container {
-    flex: 3; /* Take up more space */
-    position: relative; /* Needed for absolute positioning of children */
-    display: flex; /* Center the wrapper */
+    flex: 3;
+    position: relative;
+    display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 0; /* Allow flex item to shrink */
-     /* Remove max-height, let wrapper control */
+    overflow: hidden;
+    min-height: 0; /* Allow shrinking */
 }
 
 .grid-and-selectors-wrapper {
     display: grid;
-    /* Grid definition: Auto Col | Main Grid Col | Auto Col (for potential right-side) */
-    /* Grid definition: Auto Row | Main Grid Row */
-    grid-template-columns: auto 1fr auto;
-    grid-template-rows: auto 1fr;
-    gap: 5px; /* Gap between selectors and grid */
-    width: 100%; /* Fill the container */
-    height: 100%; /* Fill the container */
-    /* align-items: stretch; */ /* Stretch items vertically */
-    /* justify-items: stretch; */ /* Stretch items horizontally */
-    padding: 30px; /* Add padding around the grid/selectors area */
+    grid-template-columns: auto 1fr auto; /* Col1(rows), Col2(canvas), Col3(empty/future) */
+    grid-template-rows: auto 1fr;       /* Row1(cols), Row2(canvas/rows) */
+    gap: 5px;
+    width: 100%; /* Fill container */
+    height: 100%; /* Fill container */
+    padding: 30px; /* Space around grid/selectors */
     box-sizing: border-box;
+    align-items: stretch; /* Stretch vertically */
+    justify-items: stretch; /* Stretch horizontally */
 }
 
 #farm-grid {
-    grid-column: 2 / 3; /* Canvas in the middle column */
-    grid-row: 2 / 3;    /* Canvas in the bottom row */
-    width: 100%;        /* Fill grid cell */
-    height: 100%;       /* Fill grid cell */
-    object-fit: contain; /* Ensure aspect ratio is maintained if needed */
+    grid-column: 2 / 3;
+    grid-row: 2 / 3;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
     background-color: var(--card-bg);
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--border-color); /* Add border for visual clarity */
 }
 
 .row-selectors {
-    grid-column: 1 / 2; /* First column */
-    grid-row: 2 / 3;    /* Aligned vertically with canvas */
+    grid-column: 1 / 2;
+    grid-row: 2 / 3;
     display: flex;
     flex-direction: column;
-    justify-content: space-around; /* Distribute buttons vertically */
-    align-items: center; /* Center buttons horizontally */
-    height: 100%;        /* Take full height of the grid row */
-    padding: 0;          /* No extra space */
-    margin: 0;
-    box-sizing: border-box;
-    /* Remove position: absolute */
+    justify-content: space-around;
+    align-items: center;
+    padding: 0; margin: 0; box-sizing: border-box;
+    /* Explicit width might help */
+    width: 25px;
+    overflow: hidden; /* Hide overflow if buttons somehow exceed */
 }
 
 .column-selectors {
-    grid-column: 2 / 3; /* Span above canvas */
-    grid-row: 1 / 2;    /* First row */
+    grid-column: 2 / 3;
+    grid-row: 1 / 2;
     display: flex;
     flex-direction: row;
-    justify-content: space-around; /* Distribute buttons horizontally */
-    align-items: center; /* Center buttons vertically */
-    width: 100%;         /* Take full width of the grid column */
-    padding: 0;          /* No extra space */
-    margin: 0;
-    box-sizing: border-box;
-    /* Remove position: absolute */
+    justify-content: space-around;
+    align-items: center;
+    padding: 0; margin: 0; box-sizing: border-box;
+     /* Explicit height might help */
+     height: 25px;
+     overflow: hidden;
 }
 
 .selector-btn {
     background: rgba(42, 157, 143, 0.8);
     color: white;
-    width: 20px; /* Fixed size */
+    width: 20px;
     height: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
-    /* Remove margin: 1px; Let space-around handle it */
     border-radius: 3px;
     cursor: pointer;
     font-size: 10px;
     font-weight: bold;
     border: none;
     line-height: 1;
-    flex-shrink: 0; /* Prevent shrinking */
+    flex-shrink: 0;
 }
 .selector-btn:hover { background: rgba(42, 157, 143, 1); }
 .selector-btn.active { background: var(--danger-color); }
 /* --- End Grid & Selector Layout --- */
-
 
 .sidebar {
     flex: 1;
@@ -149,107 +143,68 @@ h1 {
     flex-direction: column;
     gap: 1rem;
     max-width: 350px;
-    min-width: 300px; /* Prevent excessive shrinking */
-    overflow-y: auto; /* Allow sidebar itself to scroll if content overflows */
-    height: calc(100vh - 2rem - 50px); /* Adjust based on header height */
+    min-width: 300px;
+    overflow-y: auto;
+    height: calc(100vh - 2rem - 50px); /* Adjust based on actual header height */
 }
 
-.hud-panel, .control-panel, .events-panel, .tech-panel, .advisor-placeholder { /* Added advisor */
+.hud-panel, .control-panel, .events-panel, .tech-panel, .advisor-placeholder {
     background-color: var(--card-bg);
     border-radius: 8px;
     padding: 1rem;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    margin-bottom: 1rem; /* Ensure spacing between panels */
+    margin-bottom: 1rem;
 }
-
 .hud-panel { flex-shrink: 0; }
 .control-panel { flex-shrink: 0; }
-.events-panel { flex: 1 1 200px; overflow-y: auto; min-height: 100px; } /* Allow shrinking/growing */
-.tech-panel { flex: 1 1 150px; overflow-y: auto; min-height: 80px; } /* Allow shrinking/growing */
+.events-panel { flex: 1 1 200px; overflow-y: auto; min-height: 100px; }
+.tech-panel { flex: 1 1 150px; overflow-y: auto; min-height: 80px; }
 .advisor-placeholder { flex-shrink: 0; border-left: 4px solid var(--secondary-color); }
 
+h2 { color: var(--dark-color); font-size: 1.2rem; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-color); }
+.stat { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+.stat-value { font-weight: bold; }
+.btn { background-color: var(--primary-color); color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: 600; transition: background-color 0.2s; }
+.btn:hover { background-color: #238579; }
+.btn.secondary { background-color: var(--secondary-color); color: var(--dark-color); }
+.btn.secondary:hover { background-color: #d9b85b; }
+.btn-group { display: flex; gap: 0.5rem; margin-top: 1rem; }
+.speed-control { display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; }
+.event { padding: 0.5rem; margin-bottom: 0.5rem; border-radius: 4px; border-left: 4px solid var(--primary-color); background-color: #f9f9f9; }
+.event.alert { border-left-color: var(--danger-color); background-color: #fff5f5; }
+.event-date { font-size: 0.8rem; color: #666; margin-bottom: 0.2rem; }
+.progress-bar { height: 8px; background-color: #e0e0e0; border-radius: 4px; margin-top: 2px; }
+.progress-fill { height: 100%; background-color: var(--primary-color); border-radius: 4px; width: 0; }
+.tech-item { padding: 0.5rem; margin-bottom: 0.5rem; border-radius: 4px; background-color: #f9f9f9; cursor: pointer; transition: all 0.2s; }
+.tech-item:hover { background-color: #f0f0f0; }
+.tech-item.unavailable { opacity: 0.6; cursor: not-allowed; }
+.tech-item.researched { background-color: #e6f7e6; border-left: 4px solid var(--success-color); }
+.tech-name { font-weight: bold; }
+.tech-desc { font-size: 0.9rem; margin-top: 0.2rem; }
+.tech-cost { font-size: 0.8rem; color: #666; margin-top: 0.2rem; }
+.tech-prereq { font-size: 0.8rem; color: #888; margin-top: 0.1rem; }
 
-h2 { /* Keep */ }
-.stat { /* Keep */ }
-.stat-value { /* Keep */ }
-.btn { /* Keep */ }
-.btn:hover { /* Keep */ }
-.btn.secondary { /* Keep */ }
-.btn.secondary:hover { /* Keep */ }
-.btn-group { /* Keep */ }
-.speed-control { /* Keep */ }
-.event { /* Keep */ }
-.event.alert { /* Keep */ }
-.event-date { /* Keep */ }
-.progress-bar { /* Keep */ }
-.progress-fill { /* Keep */ }
-.tech-item { /* Keep */ }
-.tech-item:hover { /* Keep */ }
-.tech-item.unavailable { /* Keep */ }
-.tech-item.researched { /* Keep */ }
-.tech-name { /* Keep */ }
-.tech-desc { /* Keep */ }
-.tech-cost { /* Keep */ }
-.tech-prereq { /* Add style for prerequisites */
-     font-size: 0.8rem;
-     color: #888;
-     margin-top: 0.1rem;
-}
+.overlay-controls { position: absolute; top: 5px; right: 5px; background: rgba(255, 255, 255, 0.8); padding: 0.3rem 0.5rem; border-radius: 4px; z-index: 100; }
+.tooltip { position: absolute; background: white; border: 1px solid #ccc; padding: 0.5rem; border-radius: 4px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); z-index: 1000; pointer-events: none; visibility: hidden; }
+.grid-legend { position: absolute; bottom: 5px; left: 5px; background: rgba(255, 255, 255, 0.8); padding: 0.5rem; border-radius: 4px; display: flex; flex-direction: column; gap: 0.3rem; z-index: 100; }
+.legend-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; }
+.legend-color { width: 20px; height: 10px; border-radius: 2px; }
 
-.overlay-controls {
-    position: absolute;
-    top: 5px; /* Closer to corner */
-    right: 5px;
-    background: rgba(255, 255, 255, 0.8);
-    padding: 0.3rem 0.5rem;
-    border-radius: 4px;
-    z-index: 100;
-}
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 1000; align-items: center; justify-content: center; }
+.modal-content { background-color: white; padding: 2rem; border-radius: 8px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; } /* Use 90% width for smaller screens */
+.close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+.close:hover { color: black; }
 
-/* Removed grid-cell styles as we draw directly on canvas */
+.splash-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); display: flex; align-items: center; justify-content: center; z-index: 2000; }
+.splash-content { background-color: var(--card-bg); border-radius: 8px; padding: 2rem; width: 90%; max-width: 600px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); text-align: center; }
+.splash-title { color: var(--dark-color); font-size: 2rem; margin-bottom: 1rem; }
+.splash-description { margin-bottom: 2rem; }
+.splash-options { display: flex; flex-direction: column; gap: 1rem; max-width: 300px; margin: 0 auto; }
+/* Removed test options styles */
 
-.tooltip { /* Keep */ }
+.debug-panel { display: none; position: fixed; top: 10px; right: 10px; width: 300px; max-height: 80vh; overflow-y: auto; background-color: rgba(0, 0, 0, 0.8); color: #00ff00; padding: 1rem; border-radius: 4px; font-family: monospace; font-size: 0.8rem; z-index: 1000; }
 
-.grid-legend {
-    position: absolute;
-    bottom: 5px; /* Closer to corner */
-    left: 5px;
-    background: rgba(255, 255, 255, 0.8);
-    padding: 0.5rem;
-    border-radius: 4px;
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem; /* Tighter spacing */
-    z-index: 100; /* Ensure above selectors if overlapping */
-}
-.legend-item { /* Keep */ }
-.legend-color { /* Keep */ }
-
-.modal { /* Keep */ }
-.modal-content { /* Keep */ }
-.splash-container { /* Keep */ }
-.splash-content { /* Keep */ }
-.splash-title { /* Keep */ }
-.splash-description { /* Keep */ }
-.splash-options { /* Keep */ }
-.test-options { /* Keep */ }
-.test-list { /* Keep */ }
-.debug-panel { /* Keep */ }
-.close { /* Keep */ }
-.close:hover { /* Keep */ }
-
-.cell-info-panel {
-    display: none;
-    position: absolute;
-    top: 5px; /* Position near top-left */
-    left: 5px; /* Position near top-left */
-    width: 280px; /* Slightly narrower */
-    background-color: white;
-    border-radius: 6px;
-    padding: 0.8rem;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-    z-index: 500;
-}
+.cell-info-panel { display: none; position: absolute; top: 5px; left: 5px; width: 280px; background-color: white; border-radius: 6px; padding: 0.8rem; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15); z-index: 500; }
 .cell-info-panel h2 { font-size: 1.1rem; margin-bottom: 0.6rem; }
 .cell-info-panel h3 { font-size: 1rem; margin-bottom: 0.4rem; }
 .crop-selection { margin-top: 0.8rem; }
@@ -257,13 +212,12 @@ h2 { /* Keep */ }
 .crop-option label { margin-left: 0.3rem; }
 .cell-actions { margin-top: 0.8rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
 
-.badge { /* Keep */ }
-.badge.danger { /* Keep */ }
-.badge.warning { /* Keep */ }
-.badge.success { /* Keep */ }
+.badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 10px; font-size: 0.8rem; font-weight: bold; color: white; background-color: var(--primary-color); margin-left: 0.5rem; }
+.badge.danger { background-color: var(--danger-color); }
+.badge.warning { background-color: var(--warning-color); color: var(--dark-color); }
+.badge.success { background-color: var(--success-color); }
 
 /* === DASHBOARD STYLES === */
-/* Keep dashboard styles from previous version */
 .farm-dashboard { background-color: var(--card-bg); border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); padding: 1rem; margin-bottom: 1rem; display: none; }
 .dashboard-visible .farm-dashboard { display: block; }
 .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
@@ -284,7 +238,6 @@ h2 { /* Keep */ }
 .financial-stat span:last-child { font-size: 1.1rem; font-weight: bold; color: #212529; }
 @media (max-width: 768px) { .dashboard-grid { grid-template-columns: 1fr; } .dashboard-row { flex-direction: column; } .financial-stats { grid-template-columns: 1fr; } .dashboard-chart { height: 120px; } }
 
-
 /* === BULK ACTION PANEL === */
 .bulk-action-panel { display: none; position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); background: white; padding: 0.8rem; border-radius: 6px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); z-index: 100; }
 .bulk-action-panel.visible { display: block; }
@@ -299,25 +252,40 @@ h2 { /* Keep */ }
 .hotkey-item { margin-bottom: 0.15rem; }
 .hotkey-key { background: #e9ecef; border: 1px solid #ced4da; border-radius: 3px; padding: 0 4px; font-family: monospace; display: inline-block; min-width: 16px; text-align: center; }
 
-/* Responsive adjustments for main layout */
+
+/* Responsive adjustments */
 @media (max-width: 1000px) {
     .main-content {
         flex-direction: column;
-        overflow-y: auto; /* Allow scrolling on small screens */
+        overflow-y: auto;
     }
     .sidebar {
         max-width: none;
-        height: auto; /* Allow sidebar height to adjust */
-        overflow-y: visible; /* Remove internal scroll for sidebar */
+        height: auto;
+        overflow-y: visible;
     }
     .farm-grid-container {
-        /* Adjust height more dynamically */
         height: auto;
-        min-height: 300px; /* Ensure some minimum grid height */
-        flex-grow: 1; /* Allow it to take available space */
+        min-height: 300px;
+        flex-grow: 1;
     }
     .grid-and-selectors-wrapper {
-        /* Adjust padding on small screens */
-        padding: 15px;
+        padding: 15px; /* Reduce padding on smaller screens */
+        /* Adjust grid template if needed */
+        grid-template-columns: auto 1fr; /* Maybe remove 3rd col */
+        grid-template-rows: auto 1fr;
+    }
+    .row-selectors {
+         /* Adjust positioning/size if needed */
+         grid-column: 1 / 2;
+         grid-row: 2 / 3;
+    }
+    .column-selectors {
+         grid-column: 1 / 3; /* Span both columns */
+         grid-row: 1 / 2;
+    }
+    #farm-grid {
+        grid-column: 2 / 3;
+        grid-row: 2 / 3;
     }
 }
