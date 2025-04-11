@@ -230,6 +230,31 @@ export class UIManager {
          this.setupRowColumnSelectors(); // This also creates the bulk panel and its listeners
     }
 
+    // --- Add Dashboard Toggle Button ---
+    addToggleDashboardButton() {
+        const btnGroup = document.querySelector('header .btn-group');
+        // Ensure the button doesn't already exist and the button group does
+        if (!document.getElementById('dashboard-btn') && btnGroup) {
+            const dashboardBtn = document.createElement('button');
+            dashboardBtn.id = 'dashboard-btn';
+            dashboardBtn.className = 'btn secondary'; // Use secondary style
+            dashboardBtn.textContent = 'Dashboard';
+            btnGroup.appendChild(dashboardBtn); // Append to the header button group
+
+            dashboardBtn.addEventListener('click', () => {
+                const dashboardVisible = document.body.classList.toggle('dashboard-visible');
+                 if (dashboardVisible) {
+                    this.updateDashboard(); // Update when shown
+                 }
+            });
+            console.log("Dashboard toggle button added.");
+        } else if (document.getElementById('dashboard-btn')) {
+             console.log("Dashboard toggle button already exists.");
+        } else {
+            console.error("Could not find header button group to add dashboard toggle button.");
+        }
+    }
+    
     // --- UI Update Methods ---
 
     updateHUD() {
