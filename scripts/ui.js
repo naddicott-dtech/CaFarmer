@@ -41,6 +41,8 @@ export class UIManager {
             }
         }, 5000);
 
+        this.fixSelectorVisibility();
+
         console.log("UIManager initialized.");
     }
 
@@ -625,6 +627,71 @@ export class UIManager {
     closeBulkActionPanel() { const panel = document.getElementById('bulk-action-panel'); if (panel) { panel.classList.remove('visible'); const plantOptions = document.getElementById('bulk-plant-options'); if (plantOptions) plantOptions.style.display = 'none'; } }
     updateBulkActionPanel() { const countSpan = document.getElementById('selected-count'); if (countSpan) countSpan.textContent = this.selectedCells.length; if (this.selectedCells.length > 0) { this.showBulkActionPanel(); } else { this.closeBulkActionPanel(); } }
     showBulkPlantOptions() { const options = document.getElementById('bulk-plant-options'); const cropOptionsDiv = document.getElementById('bulk-crop-options'); if (!options || !cropOptionsDiv) return; options.style.display = 'block'; cropOptionsDiv.innerHTML = ''; crops.forEach(crop => { if (crop.id !== 'empty') { const costToPlant = formatCurrency(Math.round(crop.basePrice * this.game.plantingCostFactor)); cropOptionsDiv.innerHTML += `<div class="crop-option"><input type="radio" id="bulk-crop-${crop.id}" name="bulk-crop-select" value="${crop.id}"><label for="bulk-crop-${crop.id}">${crop.name} (${costToPlant})</label></div>`; } }); }
+
+    fixSelectorVisibility() {
+    	console.log("Applying final visibility fix to selectors...");
+    	
+    	// Make sure we're attached to document body
+    	const rowSelectors = document.querySelector('.row-selectors');
+    	const colSelectors = document.querySelector('.column-selectors');
+    	
+    	if (!rowSelectors || !colSelectors) {
+    		console.error("Cannot find selector containers for visibility fix");
+    		return;
+    	}
+    	
+    	// Force containers to be on top of everything
+    	rowSelectors.style.zIndex = '9999';
+    	colSelectors.style.zIndex = '9999';
+    	
+    	// Style all selector buttons with more prominent styling
+    	const allButtons = [...rowSelectors.querySelectorAll('.selector-btn'), 
+    					     ...colSelectors.querySelectorAll('.selector-btn')];
+    					     
+    	allButtons.forEach(btn => {
+    		// Most visible styling possible
+    		btn.style.position = 'absolute';
+    		btn.style.backgroundColor = '#FF5722'; // Bright orange
+    		btn.style.color = 'white';
+    		btn.style.fontWeight = 'bold';
+    		btn.style.width = '24px'; // Slightly larger
+    		btn.style.height = '24px';
+    		btn.style.borderRadius = '50%'; // Make them circular
+    		btn.style.border = '2px solid white'; // White border
+    		btn.style.boxShadow = '0 0 5px rgba(0,0,0,0.5)'; // Shadow
+    		btn.style.display = 'flex';
+    		btn.style.alignItems = 'center';
+    		btn.style.justifyContent = 'center';
+    		btn.style.zIndex = '9999'; // Very high z-index
+    		btn.style.fontSize = '12px'; // Larger text
+    		btn.style.userSelect = 'none';
+    		btn.style.pointerEvents = 'auto'; // Ensure clickable
+    		btn.style.opacity = '1'; // Full opacity
+    		btn.style.visibility = 'visible'; // Ensure visibility
+    	});
+    	
+    	// Fix parent containers if they're hiding our buttons
+    	let parent = rowSelectors.parentNode;
+    	while (parent && parent !== document.body) {
+    		parent.style.overflow = 'visible';
+    		parent.style.position = 'relative';
+    		parent = parent.parentNode;
+    	}
+    	
+    	// Try making sure selectors are attached to a visible container
+    	const gridContainer = document.querySelector('.farm-grid-container');
+    	if (gridContainer) {
+    		// Ensure these are attached to grid container for visibility
+    		if (rowSelectors.parentNode !== gridContainer) {
+    			gridContainer.appendChild(rowSelectors);
+    		}
+    		if (colSelectors.parentNode !== gridContainer) {
+    			gridContainer.appendChild(colSelectors);
+    		}
+    	}
+    	
+    	console.log("Visibility fix applied to all selector buttons");
+    }
     
     _performBulkAction(actionType, gameMethod, eventVerb) {
         console.log(`[UI Debug] Performing bulk action: ${actionType}`);
