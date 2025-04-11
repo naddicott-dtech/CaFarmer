@@ -472,66 +472,73 @@ export class UIManager {
 
 // Inside ui.js -> UIManager class
     _updateSelectorPositions(offsetX, offsetY) {
-        const rowSelectors = this.canvas.parentElement?.querySelector('.row-selectors');
-        const colSelectors = this.canvas.parentElement?.querySelector('.column-selectors');
-        if (!rowSelectors || !colSelectors || !this.game || this.cellSize <= 0 || this.game.gridSize <= 0) {
-            console.warn(`Skipping selector position update. State: game=${!!this.game}, cellSize=${this.cellSize}, gridSize=${this.game?.gridSize}`);
-            return;
-        }
+    	const rowSelectors = this.canvas.parentElement?.querySelector('.row-selectors');
+    	const colSelectors = this.canvas.parentElement?.querySelector('.column-selectors');
+    	if (!rowSelectors || !colSelectors || !this.game || this.cellSize <= 0 || this.game.gridSize <= 0) {
+    		console.warn(`Skipping selector position update. State: game=${!!this.game}, cellSize=${this.cellSize}, gridSize=${this.game?.gridSize}`);
+    		return;
+    	}
     
-        const gridHeight = this.cellSize * this.game.gridSize;
-        const gridWidth = this.cellSize * this.game.gridSize;
-        
-        // Get all row selector buttons and column selector buttons
-        const rowButtons = rowSelectors.querySelectorAll('.row-selector');
-        const colButtons = colSelectors.querySelectorAll('.col-selector');
-        
-        // --- Row Selectors Container ---
-        rowSelectors.style.position = 'absolute';
-        rowSelectors.style.display = 'flex';
-        rowSelectors.style.flexDirection = 'column';
-        rowSelectors.style.justifyContent = 'space-around';
-        rowSelectors.style.height = `${gridHeight}px`; // Match exact grid height
-        rowSelectors.style.left = `${offsetX - 25}px`; // Position left of grid
-        rowSelectors.style.top = `${offsetY}px`; // Align with top of grid
-        
-        // --- Column Selectors Container ---
-        colSelectors.style.position = 'absolute';
-        colSelectors.style.display = 'flex';
-        colSelectors.style.flexDirection = 'row';
-        colSelectors.style.justifyContent = 'space-around';
-        colSelectors.style.width = `${gridWidth}px`; // Match exact grid width
-        colSelectors.style.left = `${offsetX}px`; // Align with left of grid
-        colSelectors.style.top = `${offsetY - 25}px`; // Position above grid
-        
-        // Update buttons distribution if they exist
-        if (rowButtons.length > 0 && this.game.gridSize > 0) {
-            // Calculate spacing for evenly distributed row buttons
-            const rowSpacing = gridHeight / this.game.gridSize;
-            rowButtons.forEach((btn, index) => {
-                // Position each button centered on its row
-                if (btn && typeof btn.style !== 'undefined') {
-                    btn.style.position = 'absolute';
-                    btn.style.top = `${(index * rowSpacing) + (rowSpacing/2) - 10}px`; // Center vertically on row
-                    btn.style.left = '0';
-                }
-            });
-        }
-        
-        if (colButtons.length > 0 && this.game.gridSize > 0) {
-            // Calculate spacing for evenly distributed column buttons
-            const colSpacing = gridWidth / this.game.gridSize;
-            colButtons.forEach((btn, index) => {
-                // Position each button centered on its column
-                if (btn && typeof btn.style !== 'undefined') {
-                    btn.style.position = 'absolute';
-                    btn.style.left = `${(index * colSpacing) + (colSpacing/2) - 10}px`; // Center horizontally on column
-                    btn.style.top = '0';
-                }
-            });
-        }
+    	const gridHeight = this.cellSize * this.game.gridSize;
+    	const gridWidth = this.cellSize * this.game.gridSize;
+    	const buttonSize = 20; // Size of selector buttons
+    	const margin = 5; // Margin between buttons and grid
     
-        console.log(`Updated Selector Positioning: gridWidth=${gridWidth}, gridHeight=${gridHeight}, cellSize=${this.cellSize}`);
+    	// --- Clear any previously set styles ---
+    	// This ensures we don't have lingering styles from previous calculations
+    	rowSelectors.removeAttribute('style');
+    	colSelectors.removeAttribute('style');
+    	
+    	// --- Position containers ---
+    	rowSelectors.style.position = 'absolute';
+    	rowSelectors.style.display = 'block'; // Not flex - we'll position precisely
+    	rowSelectors.style.left = `${offsetX - buttonSize - margin}px`;
+    	rowSelectors.style.top = `${offsetY}px`;
+    	rowSelectors.style.width = `${buttonSize}px`;
+    	rowSelectors.style.height = `${gridHeight}px`;
+    	
+    	colSelectors.style.position = 'absolute';
+    	colSelectors.style.display = 'block'; // Not flex - we'll position precisely
+    	colSelectors.style.left = `${offsetX}px`;
+    	colSelectors.style.top = `${offsetY - buttonSize - margin}px`;
+    	colSelectors.style.width = `${gridWidth}px`;
+    	colSelectors.style.height = `${buttonSize}px`;
+    	
+    	// --- Position individual buttons ---
+    	const rowButtons = Array.from(rowSelectors.children);
+    	const colButtons = Array.from(colSelectors.children).filter(el => !el.classList.contains('select-all'));
+    	const selectAllBtn = colSelectors.querySelector('.select-all');
+    	
+    	// Clear previous styles from all buttons
+    	[...rowButtons, ...colButtons, selectAllBtn].filter(Boolean).forEach(btn => {
+    		btn.removeAttribute('style');
+    	});
+    	
+    	// Position row buttons (vertically aligned with each row)
+    	rowButtons.forEach((btn, index) => {
+    		btn.style.position = 'absolute';
+    		btn.style.top = `${(index * this.cellSize) + (this.cellSize/2) - (buttonSize/2)}px`;
+    		btn.style.left = '0px';
+    		btn.style.margin = '0';
+    	});
+    	
+    	// Position column buttons (horizontally aligned with each column)
+    	colButtons.forEach((btn, index) => {
+    		btn.style.position = 'absolute';
+    		btn.style.left = `${(index * this.cellSize) + (this.cellSize/2) - (buttonSize/2)}px`;
+    		btn.style.top = '0px';
+    		btn.style.margin = '0';
+    	});
+    	
+    	// Position the select all button after the last column
+    	if (selectAllBtn) {
+    		selectAllBtn.style.position = 'absolute';
+    		selectAllBtn.style.left = `${gridWidth + margin}px`;
+    		selectAllBtn.style.top = '0px';
+    		selectAllBtn.style.margin = '0';
+    	}
+    	
+    	console.log(`Updated selector positions: gridSize=${this.game.gridSize}, cellSize=${this.cellSize.toFixed(1)}`);
     }
     
     // --- SELECTION & BULK ACTION METHODS ---
