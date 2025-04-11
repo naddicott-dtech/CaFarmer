@@ -52,17 +52,26 @@ h1 {
     gap: 1rem;
 }
 
+/* --- Grid Size Constraint --- */
 .farm-grid-container {
-    flex: 3;
-    position: relative;
+    flex: 3; /* Keep existing flex rule */
+    position: relative; /* Keep existing position */
+    /* Add/Modify these: */
+    max-height: 65vh; /* Adjust 65vh as needed (e.g., 70vh, 60vh) */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden; /* Prevent scrollbars if canvas slightly overflows */
 }
 
 #farm-grid {
+    /* Add/Modify these: */
+    max-width: 100%;
+    max-height: 100%;
+    /* Keep existing background, border-radius, box-shadow */
     background-color: var(--card-bg);
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    width: 100%;
-    height: 100%;
 }
 
 .sidebar {
@@ -587,34 +596,47 @@ h2 {
     z-index: 50;
 }
 
+/* --- Selector Alignment --- */
 .row-selectors {
+    position: absolute; /* Keep if it was there */
+    display: flex;
     flex-direction: column;
-    left: 10px;
-    top: 50%;
-    transform: translateY(-50%);
+    justify-content: space-around; /* Distribute buttons vertically */
+    align-items: center;
+    /* Remove transform: translateY(-50%); if present */
+    /* Positioning is handled by JS (_updateSelectorPositions) */
+    height: auto; /* Height will be set by JS */
 }
 
 .column-selectors {
+    position: absolute; /* Keep if it was there */
+    display: flex;
     flex-direction: row;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
+    justify-content: space-around; /* Distribute buttons horizontally */
+    align-items: center;
+    /* Remove transform: translateX(-50%); if present */
+    /* Positioning is handled by JS (_updateSelectorPositions) */
+    width: auto; /* Width will be set by JS */
 }
 
+/* Optional: Ensure buttons don't shrink too much */
 .selector-btn {
-    background: rgba(42, 157, 143, 0.8);
+    /* Keep existing styles */
+    background: rgba(42, 157, 143, 0.7);
     color: white;
-    width: 24px;
-    height: 24px;
+    width: 20px; /* Base size, JS might override */
+    height: 20px; /* Base size, JS might override */
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 2px;
-    border-radius: 4px;
+    margin: 1px;
+    border-radius: 3px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 10px; /* Base size, JS might override */
     font-weight: bold;
     border: none;
+    line-height: 1; /* Ensure text centers vertically */
+    flex-shrink: 0; /* Prevent buttons from shrinking in flex container */
 }
 
 .selector-btn:hover {
