@@ -470,7 +470,7 @@ export class UIManager {
            else { console.error("Game method for action", actionType, "is not valid."); }
     }
 
-// Inside ui.js -> UIManager class
+    // Inside ui.js -> UIManager class
     _updateSelectorPositions(offsetX, offsetY) {
     	const rowSelectors = this.canvas.parentElement?.querySelector('.row-selectors');
     	const colSelectors = this.canvas.parentElement?.querySelector('.column-selectors');
@@ -484,58 +484,85 @@ export class UIManager {
     	const buttonSize = 20; // Size of selector buttons
     	const margin = 5; // Margin between buttons and grid
     
-    	// --- Position containers ---
+    	// Reset the containers to ensure clean positioning
+    	rowSelectors.setAttribute('style', ''); // Clear all styles
+    	colSelectors.setAttribute('style', ''); // Clear all styles
+    
+    	// --- Set base container positions ---
     	rowSelectors.style.position = 'absolute';
-    	rowSelectors.style.display = 'block'; // Not flex - we'll position precisely
+    	rowSelectors.style.display = 'block'; 
     	rowSelectors.style.left = `${offsetX - buttonSize - margin}px`;
     	rowSelectors.style.top = `${offsetY}px`;
     	rowSelectors.style.width = `${buttonSize}px`;
     	rowSelectors.style.height = `${gridHeight}px`;
+    	rowSelectors.style.overflow = 'visible'; // IMPORTANT: Allow content to overflow
     	
     	colSelectors.style.position = 'absolute';
-    	colSelectors.style.display = 'block'; // Not flex - we'll position precisely
+    	colSelectors.style.display = 'block';
     	colSelectors.style.left = `${offsetX}px`;
     	colSelectors.style.top = `${offsetY - buttonSize - margin}px`;
-    	colSelectors.style.width = `${gridWidth + buttonSize + margin}px`; // Make room for select-all button
+    	colSelectors.style.width = `${gridWidth}px`;
     	colSelectors.style.height = `${buttonSize}px`;
+    	colSelectors.style.overflow = 'visible'; // IMPORTANT: Allow content to overflow
     	
-    	// --- Position individual buttons ---
-    	// Find row buttons and column buttons (excluding select-all)
-    	const rowButtons = Array.from(rowSelectors.querySelectorAll('.row-selector'));
-    	const colButtons = Array.from(colSelectors.querySelectorAll('.col-selector'));
+    	// --- Get all selector buttons ---
+    	const rowButtons = rowSelectors.querySelectorAll('.selector-btn');
+    	const colButtons = colSelectors.querySelectorAll('.selector-btn:not(.select-all)');
     	const selectAllBtn = colSelectors.querySelector('.select-all');
     	
-    	// Position row buttons (vertically aligned with each row)
+    	// --- Position row buttons (numbers 1-10) ---
     	rowButtons.forEach((btn, index) => {
+    		// Reset button styles
+    		btn.setAttribute('style', '');
+    		
+    		// Set new positioning
     		btn.style.position = 'absolute';
-    		btn.style.top = `${(index * this.cellSize) + (this.cellSize/2) - (buttonSize/2)}px`;
     		btn.style.left = '0px';
+    		btn.style.top = `${(index * this.cellSize) + (this.cellSize/2) - (buttonSize/2)}px`;
     		btn.style.margin = '0';
+    		btn.style.zIndex = '10'; // Ensure buttons are on top
+    		btn.style.display = 'flex';
+    		btn.style.alignItems = 'center';
+    		btn.style.justifyContent = 'center';
+    		btn.style.width = `${buttonSize}px`;
+    		btn.style.height = `${buttonSize}px`;
     	});
     	
-    	// Position column buttons (horizontally aligned with each column)
+    	// --- Position column buttons (letters A-J) ---
     	colButtons.forEach((btn, index) => {
+    		// Reset button styles
+    		btn.setAttribute('style', '');
+    		
+    		// Set new positioning
     		btn.style.position = 'absolute';
-    		btn.style.left = `${(index * this.cellSize) + (this.cellSize/2) - (buttonSize/2)}px`;
     		btn.style.top = '0px';
+    		btn.style.left = `${(index * this.cellSize) + (this.cellSize/2) - (buttonSize/2)}px`;
     		btn.style.margin = '0';
+    		btn.style.zIndex = '10'; // Ensure buttons are on top
+    		btn.style.display = 'flex';
+    		btn.style.alignItems = 'center';
+    		btn.style.justifyContent = 'center';
+    		btn.style.width = `${buttonSize}px`;
+    		btn.style.height = `${buttonSize}px`;
     	});
     	
-    	// Position the select all button after the last column
+    	// --- Position the select all button ---
     	if (selectAllBtn) {
+    		selectAllBtn.setAttribute('style', '');
     		selectAllBtn.style.position = 'absolute';
-    		selectAllBtn.style.left = `${gridWidth + margin}px`;
     		selectAllBtn.style.top = '0px';
+    		selectAllBtn.style.left = `${gridWidth + margin}px`;
     		selectAllBtn.style.margin = '0';
-    		// Make sure it's visible
-    		selectAllBtn.style.display = 'block';
-    		// Set z-index to ensure it's on top
     		selectAllBtn.style.zIndex = '10';
-    		console.log("Select-All button positioned at: ", selectAllBtn.style.left);
-    	} else {
-    		console.warn("Select-All button not found in column selectors container.");
+    		selectAllBtn.style.display = 'flex';
+    		selectAllBtn.style.alignItems = 'center';
+    		selectAllBtn.style.justifyContent = 'center';
+    		selectAllBtn.style.width = `${buttonSize}px`;
+    		selectAllBtn.style.height = `${buttonSize}px`;
+    		console.log(`Select-All button positioned at: ${selectAllBtn.style.left}`);
     	}
     	
+    	// Log for debugging
     	console.log(`Updated selector positions: gridSize=${this.game.gridSize}, cellSize=${this.cellSize.toFixed(1)}, selectAll=${!!selectAllBtn}`);
     }
     
