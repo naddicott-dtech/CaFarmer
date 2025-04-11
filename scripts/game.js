@@ -686,41 +686,81 @@ processPendingEvents() {
     }
 
     harvestCell(row, col) {
+         // Validate coordinates
          if (row < 0 || row >= this.gridSize || col < 0 || col >= this.gridSize) {
+             this.logger.log(`[GAME] harvestCell: Invalid coordinates (${row}, ${col})`, 0);
              return { success: false, reason: 'Invalid coordinates' };
          }
-        const cell = this.grid[row][col];
+         // Ensure cell exists
+         if (!this.grid[row] || !this.grid[row][col]) {
+             this.logger.log(`[GAME] harvestCell: ERROR - Cell object missing at (${row}, ${col})`, 0);
+             return { success: false, reason: 'Cell missing' };
+         }
+         const cell = this.grid[row][col];
+
+         // Check if harvestable
         if (cell.crop.id === 'empty') {
-            this.logger.log(`Attempted harvest on empty plot (${row}, ${col})`, 3);
+            this.logger.log(`[GAME] harvestCell: Attempted harvest on empty plot (${row}, ${col})`, 3);
+            // Optionally add UI event for player feedback if not headless
+            if (!this.headless && typeof this.addEvent === 'function') {
+                 this.addEvent(`Plot (${String.fromCharCode(65 + col)}${row + 1}) is empty.`, true);
+            }
             return { success: false, reason: 'Empty plot' };
         }
         if (!cell.harvestReady) {
-            this.logger.log(`Attempted harvest on not-ready plot (${row}, ${col}), Crop: ${cell.crop.id}, Progress: ${cell.growthProgress}%`, 3);
+            this.logger.log(`[GAME] harvestCell: Attempted harvest on not-ready plot (${row}, ${col}), Crop: ${cell.crop.id}, Progress: ${cell.growthProgress.toFixed(0)}%`, 3);
+            if (!this.headless && typeof this.addEvent === 'function') {
+                 this.addEvent(`${cell.crop.name} at (${String.fromCharCode(65 + col)}${row + 1}) is not ready.`, true);
+            }
              return { success: false, reason: 'Not ready' };
         }
 
+        // Calculate Harvest
         const marketPriceFactor = this.marketPrices[cell.crop.id] || 1.0;
+        // Assuming cell.harvest calculates and returns { value: number, cropName: string, yieldPercentage: number }
+        // It should also internally call cell.reset()
         const harvestData = cell.harvest(this.waterReserve, marketPriceFactor);
 
-        if (harvestData.value === undefined || harvestData.yieldPercentage === undefined) {
-             this.logger.log(`ERROR: Harvest calculation failed for plot (${row}, ${col})`, 0);
-             return { success: false, reason: 'Calculation error' };
+        // Validate harvestData
+        if (typeof harvestData?.value !== 'number' || typeof harvestData?.yieldPercentage !== 'number' || !harvestData?.cropName) {
+             this.logger.log(`[GAME] harvestCell: ERROR - Invalid data returned from cell.harvest() for plot (${row}, ${col}). Data: ${JSON.stringify(harvestData)}`, 0);
+             // Attempt to reset the cell anyway to prevent it being stuck harvestable
+             cell.reset();
+             if (this.ui) { this.ui.render(); } // Re-render cell if UI exists
+             return { success: false, reason: 'Harvest calculation error' };
         }
 
-        if (harvestData.value > 0) {
-             this.balance += harvestData.value;
+        // Update Balance (with robustness check)
+        const incomeValue = Number(harvestData.value); // Ensure it's treated as a number
+        if (!isNaN(incomeValue) && incomeValue > 0) {
+            this.logger.log(`[GAME] harvestCell(${row},${col}): Balance BEFORE harvest: ${formatCurrency(this.balance)}, Adding income: ${formatCurrency(incomeValue)}`, 3); // Detail log
+            this.balance += incomeValue;
+            this.logger.log(`[GAME] harvestCell(${row},${col}): Balance AFTER harvest: ${formatCurrency(this.balance)}`, 3); // Detail log
+        } else if (isNaN(incomeValue)) {
+            this.logger.log(`[GAME] harvestCell: ERROR - Harvest returned non-numeric income: ${harvestData.value} from cell (${row}, ${col})`, 0);
+        } else {
+             this.logger.log(`[GAME] harvestCell(${row},${col}): Harvest income is ${incomeValue}. No balance change.`, 3);
         }
 
-        if (this.ui) { this.ui.updateHUD(); this.ui.showCellInfo(row, col); }
+        // Update UI (if exists) - This happens AFTER balance update now
+        if (this.ui) {
+             // UpdateHUD reads the *new* balance state
+             this.ui.updateHUD();
+             // showCellInfo reflects the *reset* state of the cell
+             this.ui.showCellInfo(row, col);
+             // render redraws the cell (now empty)
+             this.ui.render();
+        }
 
+        // Return structured result (as expected by UI/strategies)
         return {
             success: true,
-            income: harvestData.value,
+            income: harvestData.value, // Use the validated numeric value? Or original? Keep original for now.
             cropName: harvestData.cropName,
             yieldPercentage: harvestData.yieldPercentage
         };
-    }
-
+    } // End harvestCell
+    
     researchTechnology(techId) {
         const tech = this.technologies.find(t => t.id === techId);
         if (!tech) { this.logger.log(`Technology ID not found: ${techId}`, 0); return false; }
