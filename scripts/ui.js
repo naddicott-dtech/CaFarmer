@@ -222,12 +222,87 @@ export class UIManager {
     }
 
     setupRowColumnSelectors() {
-        const gridContainer = document.querySelector('.farm-grid-container'); if (!gridContainer) { console.error("Grid container not found for selectors."); return; } if (gridContainer.querySelector('.row-selectors')) return;
-        const rowSelectors = document.createElement('div'); rowSelectors.className = 'row-selectors'; const columnSelectors = document.createElement('div'); columnSelectors.className = 'column-selectors';
-        for (let i = 0; i < this.game.gridSize; i++) { const rowBtn = document.createElement('button'); rowBtn.className = 'selector-btn row-selector'; rowBtn.textContent = (i + 1).toString(); rowBtn.dataset.row = i; rowBtn.addEventListener('click', (e) => { e.stopPropagation(); this.selectRow(i); }); rowSelectors.appendChild(rowBtn); const colBtn = document.createElement('button'); colBtn.className = 'selector-btn col-selector'; colBtn.textContent = String.fromCharCode(65 + i); colBtn.dataset.col = i; colBtn.addEventListener('click', (e) => { e.stopPropagation(); this.selectColumn(i); }); columnSelectors.appendChild(colBtn); }
-        const selectAllBtn = document.createElement('button'); selectAllBtn.className = 'selector-btn select-all'; selectAllBtn.textContent = '✓'; selectAllBtn.title = 'Select All'; selectAllBtn.addEventListener('click', (e) => { e.stopPropagation(); this.selectAll(); }); columnSelectors.appendChild(selectAllBtn);
-        gridContainer.appendChild(rowSelectors); gridContainer.appendChild(columnSelectors); console.log("Row/Column selectors added.");
+        const gridContainer = document.querySelector('.farm-grid-container');
+        // *** Add check for game instance ***
+        if (!gridContainer || !this.game) {
+             console.error("Grid container or game object not ready for selectors.");
+             return;
+        }
+        // Prevent adding multiple times
+        if (gridContainer.querySelector('.row-selectors')) {
+             console.log("Selectors already exist.");
+             return;
+        }
+
+        // *** Ensure this.game.gridSize is valid before proceeding ***
+        if (!this.game.gridSize || this.game.gridSize <= 0) {
+             console.error(`Cannot setup selectors, invalid gridSize in game object: ${this.game.gridSize}`);
+             // Maybe schedule a retry? For now, just stop.
+             // setTimeout(() => this.setupRowColumnSelectors(), 100);
+             return;
+        }
+
+        console.log(`Setting up selectors for grid size: ${this.game.gridSize}`); // Log size being used
+
+        const rowSelectors = document.createElement('div');
+        rowSelectors.className = 'row-selectors';
+        const columnSelectors = document.createElement('div');
+        columnSelectors.className = 'column-selectors';
+
+        // The loop depends on gridSize being correct
+        for (let i = 0; i < this.game.gridSize; i++) {
+            // Row Selector Button
+            const rowBtn = document.createElement('button');
+            rowBtn.className = 'selector-btn row-selector';
+            rowBtn.textContent = (i + 1).toString(); // 1-based index for display
+            rowBtn.dataset.row = i; // Store 0-based index
+            rowBtn.title = `Select Row ${i + 1}`;
+            rowBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent canvas click
+                this.selectRow(i);
+            });
+            rowSelectors.appendChild(rowBtn);
+
+            // Column Selector Button
+            const colBtn = document.createElement('button');
+            colBtn.className = 'selector-btn col-selector';
+            colBtn.textContent = String.fromCharCode(65 + i); // A, B, C...
+            colBtn.dataset.col = i; // Store 0-based index
+            colBtn.title = `Select Column ${String.fromCharCode(65 + i)}`;
+            colBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent canvas click
+                this.selectColumn(i);
+            });
+            columnSelectors.appendChild(colBtn);
+        }
+
+        // "Select All" Button
+        const selectAllBtn = document.createElement('button');
+        selectAllBtn.className = 'selector-btn select-all';
+        selectAllBtn.textContent = '✓'; // Checkmark symbol
+        selectAllBtn.title = 'Select All Plots';
+        selectAllBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent canvas click
+            this.selectAll();
+        });
+        // Append to column selectors for layout consistency
+        columnSelectors.appendChild(selectAllBtn);
+
+        // Add containers to the grid container
+        gridContainer.appendChild(rowSelectors);
+        gridContainer.appendChild(columnSelectors);
+        console.log("Row/Column selector elements added to DOM.");
+
+        // Create the bulk action panel (ensure it runs after selectors are in DOM)
         this.createBulkActionPanel();
+
+        // Initial positioning (may get called again by render/resize)
+        // Calculate initial offset based on current canvas/cell size
+         const gridWidth = this.cellSize * this.game.gridSize;
+         const gridHeight = this.cellSize * this.game.gridSize;
+         const initialOffsetX = (this.canvas.width - gridWidth) / 2;
+         const initialOffsetY = (this.canvas.height - gridHeight) / 2;
+        this._updateSelectorPositions(initialOffsetX, initialOffsetY);
     }
 
     createBulkActionPanel() {
