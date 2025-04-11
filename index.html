@@ -76,9 +76,7 @@
 
                 <div class="control-panel">
                     <h2>Actions</h2>
-                    <!-- Removed radio group as selection mode replaces it -->
-                    <!-- <div class="radio-group"> ... </div> -->
-                    <p>Click grid or use selectors. Hotkeys: (I)rrigate, (F)ertilize, (H)arvest, (M)ode, (R)epeat, (D)ashboard, (Esc)Clear.</p>
+                    <p>Click grid or use selectors/hotkeys. Hotkeys: (I)rrigate, (F)ertilize, (H)arvest, (M)ode, (R)epeat, (D)ashboard, (Esc)Clear.</p>
                     <div class="btn-group">
                         <button id="market-btn" class="btn">Market</button>
                         <button id="research-btn" class="btn secondary">Research</button>
@@ -146,8 +144,6 @@
                 <button id="regular-game-btn" class="btn">Start Regular Game</button>
                 <button id="tutorial-btn" class="btn secondary">Tutorial (Coming Soon)</button>
             </div>
-            <!-- Removed test options from UI for simplicity -->
-            <!-- <div id="test-options" class="test-options"> ... </div> -->
         </div>
     </div>
 
@@ -159,8 +155,194 @@
 
     <!-- Inline Debug Logger Script -->
     <script>
-    (function() { /* ... Keep inline debug logger code ... */ })();
-    window.addEventListener('error', function(e) { /* ... Keep module error tracker ... */ });
+    // Create visual error display for debugging
+    (function() {
+        // Store original console methods
+        const originalConsole = {
+            log: console.log.bind(console),
+            warn: console.warn.bind(console),
+            error: console.error.bind(console)
+        };
+        let logPanel = null; // Reference to the panel
+        let logContainer = null; // Reference to the container
+
+        // Function to create the visual log panel
+        const createLogPanel = () => {
+            // Avoid creating multiple panels
+            if (document.getElementById('debug-log-panel')) {
+                return document.getElementById('debug-log-panel');
+            }
+
+            const panel = document.createElement('div');
+            panel.id = 'debug-log-panel';
+            panel.style.position = 'fixed';
+            panel.style.bottom = '10px';
+            panel.style.right = '10px';
+            panel.style.width = '450px'; // Slightly wider
+            panel.style.maxHeight = '350px'; // Slightly taller
+            panel.style.overflowY = 'auto';
+            panel.style.backgroundColor = 'rgba(0,0,0,0.85)';
+            panel.style.color = '#00ff00'; // Default log color
+            panel.style.fontFamily = 'monospace';
+            panel.style.fontSize = '11px'; // Slightly smaller
+            panel.style.padding = '10px';
+            panel.style.borderRadius = '5px';
+            panel.style.zIndex = '9999';
+            panel.style.display = 'block'; // Show by default, user can close
+
+            // Add controls
+            const controls = document.createElement('div');
+            controls.style.marginBottom = '10px';
+            controls.style.borderBottom = '1px solid #555';
+            controls.style.paddingBottom = '5px';
+            controls.innerHTML = `
+                <span style="color: white; font-weight: bold;">DEBUG LOG</span>
+                <button id="clear-log" style="background:#555;color:white;border:none;padding:3px 8px;margin-left:10px;cursor:pointer;">Clear</button>
+                <button id="close-log" style="background:#555;color:white;border:none;padding:3px 8px;margin-left:5px;cursor:pointer;">Close</button>
+            `;
+            panel.appendChild(controls);
+
+            // Add log container
+            const container = document.createElement('div');
+            container.id = 'log-container';
+            panel.appendChild(container);
+
+            // Add to document
+            document.body.appendChild(panel);
+
+            // Add event listeners for controls
+            panel.querySelector('#clear-log').addEventListener('click', () => {
+                if (logContainer) logContainer.innerHTML = '';
+            });
+
+            panel.querySelector('#close-log').addEventListener('click', () => {
+                panel.style.display = 'none';
+            });
+
+            return panel;
+        };
+
+        // Global error handler for uncaught exceptions
+        window.onerror = function(message, source, lineno, colno, error) {
+            // Try to get a more detailed stack trace if available
+            const stack = error ? error.stack : 'No stack trace available';
+            const errorMsg = `ERROR: ${message} at ${source}:${lineno}:${colno}\nStack: ${stack}`;
+            // Use the overridden console.error to display it
+            console.error(errorMsg);
+            // Return false to allow default browser error handling (like showing in main console)
+            return false;
+        };
+
+        // Handle unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(event) {
+             console.error('Unhandled Promise Rejection:', event.reason);
+        });
+
+
+        // Function to add log entries to the panel
+        function addLogEntry(type, args) {
+            // Ensure panel exists
+            if (!logPanel || !logContainer) {
+                 logPanel = createLogPanel();
+                 logContainer = logPanel.querySelector('#log-container');
+                 if (!logPanel || !logContainer) return; // Still couldn't create it
+            }
+            // Ensure panel is visible if it was closed
+            if (logPanel.style.display === 'none') {
+                 logPanel.style.display = 'block';
+            }
+
+            const entry = document.createElement('div');
+            entry.style.borderBottom = '1px solid #333';
+            entry.style.padding = '2px 0';
+            entry.style.wordWrap = 'break-word'; // Allow long lines to wrap
+
+            // Format the time
+            const time = new Date().toTimeString().split(' ')[0];
+            let color = '#00ff00'; // Green for log
+            let prefix = 'LOG';
+
+            if (type === 'warn') {
+                color = '#ffff00'; // Yellow for warn
+                prefix = 'WARN';
+            } else if (type === 'error') {
+                color = '#ff4444'; // Red for error
+                prefix = 'ERROR';
+            }
+
+            // Format the message arguments
+            const messageParts = args.map(arg => {
+                if (arg instanceof Error) {
+                    return `${arg.message}\n${arg.stack || '(No stack)'}`;
+                }
+                if (typeof arg === 'object' && arg !== null) {
+                    try {
+                        // Simple stringify for readability, avoid excessive depth
+                        return JSON.stringify(arg, (key, value) =>
+                            typeof value === 'object' && value !== null ? '[Object]' : value, 2);
+                    } catch (e) {
+                        return '[Unserializable Object]';
+                    }
+                }
+                return String(arg);
+            });
+            const message = messageParts.join(' ');
+
+            // Use textContent for safety against potential HTML injection in logs
+            const timeSpan = document.createElement('span'); timeSpan.style.color = '#999'; timeSpan.textContent = `[${time}] `;
+            const prefixSpan = document.createElement('span'); prefixSpan.style.color = color; prefixSpan.textContent = `${prefix}: `;
+            const messageSpan = document.createElement('span'); messageSpan.textContent = message;
+
+            entry.appendChild(timeSpan);
+            entry.appendChild(prefixSpan);
+            entry.appendChild(messageSpan);
+
+            logContainer.appendChild(entry);
+
+            // Auto-scroll to bottom ONLY if the user hasn't manually scrolled up
+            // A bit tricky, simple scroll always for now
+            logPanel.scrollTop = logPanel.scrollHeight;
+
+            // Limit entries to prevent performance issues
+            const maxEntries = 150; // Increased limit slightly
+            while (logContainer.children.length > maxEntries) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+        }
+
+        // Wait until DOM is loaded to ensure body exists for panel creation
+        // and to override console *after* potential early script errors
+        window.addEventListener('DOMContentLoaded', () => {
+            // Override console methods
+            console.log = function() {
+                originalConsole.log.apply(console, arguments); // Call original too
+                addLogEntry('log', Array.from(arguments));
+            };
+
+            console.warn = function() {
+                originalConsole.warn.apply(console, arguments);
+                addLogEntry('warn', Array.from(arguments));
+            };
+
+            console.error = function() {
+                // Log the arguments *before* calling original, in case original throws
+                addLogEntry('error', Array.from(arguments));
+                originalConsole.error.apply(console, arguments);
+            };
+
+            // Initial log message
+            console.log('Debug logger initialized');
+        });
+    })();
+
+    // Add module import error tracking
+    window.addEventListener('error', function(e) {
+        // Filter for module loading errors specifically if possible
+        if (e.message && (e.message.includes('import') || e.message.includes('module'))) {
+             console.error(`Module loading error in ${e.filename?.split('/').pop() || 'unknown'}: ${e.message}`);
+        }
+        // Note: General errors are caught by window.onerror above
+    }, true); // Use capture phase to catch earlier
     </script>
 
     <!-- Module Scripts - Order Matters -->
