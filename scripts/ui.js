@@ -222,87 +222,57 @@ export class UIManager {
     }
 
     setupRowColumnSelectors() {
-        const gridContainer = document.querySelector('.farm-grid-container');
-        // *** Add check for game instance ***
-        if (!gridContainer || !this.game) {
-             console.error("Grid container or game object not ready for selectors.");
-             return;
-        }
-        // Prevent adding multiple times
-        if (gridContainer.querySelector('.row-selectors')) {
-             console.log("Selectors already exist.");
-             return;
-        }
+        // Find the containers placed by index.html
+        const rowSelectorsContainer = document.querySelector('.row-selectors');
+        const colSelectorsContainer = document.querySelector('.column-selectors');
+        const gridContainer = document.querySelector('.farm-grid-container'); // Still needed for bulk panel
 
-        // *** Ensure this.game.gridSize is valid before proceeding ***
+        if (!rowSelectorsContainer || !colSelectorsContainer || !this.game) {
+             console.error("Selector containers or game object not found.");
+             return;
+        }
+        // Clear any previous buttons (e.g., if re-initialized)
+        rowSelectorsContainer.innerHTML = '';
+        colSelectorsContainer.innerHTML = '';
+
         if (!this.game.gridSize || this.game.gridSize <= 0) {
-             console.error(`Cannot setup selectors, invalid gridSize in game object: ${this.game.gridSize}`);
-             // Maybe schedule a retry? For now, just stop.
-             // setTimeout(() => this.setupRowColumnSelectors(), 100);
+             console.error("Cannot setup selector buttons, invalid gridSize:", this.game.gridSize);
              return;
         }
+        console.log(`Setting up selector buttons for grid size: ${this.game.gridSize}`);
 
-        console.log(`Setting up selectors for grid size: ${this.game.gridSize}`); // Log size being used
-
-        const rowSelectors = document.createElement('div');
-        rowSelectors.className = 'row-selectors';
-        const columnSelectors = document.createElement('div');
-        columnSelectors.className = 'column-selectors';
-
-        // The loop depends on gridSize being correct
         for (let i = 0; i < this.game.gridSize; i++) {
-            // Row Selector Button
+            // Row Button
             const rowBtn = document.createElement('button');
             rowBtn.className = 'selector-btn row-selector';
-            rowBtn.textContent = (i + 1).toString(); // 1-based index for display
-            rowBtn.dataset.row = i; // Store 0-based index
+            rowBtn.textContent = (i + 1).toString();
+            rowBtn.dataset.row = i;
             rowBtn.title = `Select Row ${i + 1}`;
-            rowBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent canvas click
-                this.selectRow(i);
-            });
-            rowSelectors.appendChild(rowBtn);
+            rowBtn.addEventListener('click', (e) => { e.stopPropagation(); this.selectRow(i); });
+            rowSelectorsContainer.appendChild(rowBtn); // Append to existing container
 
-            // Column Selector Button
+            // Column Button
             const colBtn = document.createElement('button');
             colBtn.className = 'selector-btn col-selector';
-            colBtn.textContent = String.fromCharCode(65 + i); // A, B, C...
-            colBtn.dataset.col = i; // Store 0-based index
+            colBtn.textContent = String.fromCharCode(65 + i);
+            colBtn.dataset.col = i;
             colBtn.title = `Select Column ${String.fromCharCode(65 + i)}`;
-            colBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent canvas click
-                this.selectColumn(i);
-            });
-            columnSelectors.appendChild(colBtn);
+            colBtn.addEventListener('click', (e) => { e.stopPropagation(); this.selectColumn(i); });
+            colSelectorsContainer.appendChild(colBtn); // Append to existing container
         }
 
-        // "Select All" Button
+        // Select All Button
         const selectAllBtn = document.createElement('button');
         selectAllBtn.className = 'selector-btn select-all';
-        selectAllBtn.textContent = '✓'; // Checkmark symbol
+        selectAllBtn.textContent = '✓';
         selectAllBtn.title = 'Select All Plots';
-        selectAllBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent canvas click
-            this.selectAll();
-        });
-        // Append to column selectors for layout consistency
-        columnSelectors.appendChild(selectAllBtn);
+        selectAllBtn.addEventListener('click', (e) => { e.stopPropagation(); this.selectAll(); });
+        colSelectorsContainer.appendChild(selectAllBtn); // Append to column container
 
-        // Add containers to the grid container
-        gridContainer.appendChild(rowSelectors);
-        gridContainer.appendChild(columnSelectors);
-        console.log("Row/Column selector elements added to DOM.");
+        console.log("Row/Column selector buttons added to containers.");
 
-        // Create the bulk action panel (ensure it runs after selectors are in DOM)
+        // Create bulk panel (still appended to gridContainer for positioning relative to grid)
         this.createBulkActionPanel();
-
-        // Initial positioning (may get called again by render/resize)
-        // Calculate initial offset based on current canvas/cell size
-         const gridWidth = this.cellSize * this.game.gridSize;
-         const gridHeight = this.cellSize * this.game.gridSize;
-         const initialOffsetX = (this.canvas.width - gridWidth) / 2;
-         const initialOffsetY = (this.canvas.height - gridHeight) / 2;
-        this._updateSelectorPositions(initialOffsetX, initialOffsetY);
     }
 
     createBulkActionPanel() {
