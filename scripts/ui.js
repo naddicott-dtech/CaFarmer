@@ -484,11 +484,6 @@ export class UIManager {
     	const buttonSize = 20; // Size of selector buttons
     	const margin = 5; // Margin between buttons and grid
     
-    	// --- Clear any previously set styles ---
-    	// This ensures we don't have lingering styles from previous calculations
-    	rowSelectors.removeAttribute('style');
-    	colSelectors.removeAttribute('style');
-    	
     	// --- Position containers ---
     	rowSelectors.style.position = 'absolute';
     	rowSelectors.style.display = 'block'; // Not flex - we'll position precisely
@@ -501,18 +496,14 @@ export class UIManager {
     	colSelectors.style.display = 'block'; // Not flex - we'll position precisely
     	colSelectors.style.left = `${offsetX}px`;
     	colSelectors.style.top = `${offsetY - buttonSize - margin}px`;
-    	colSelectors.style.width = `${gridWidth}px`;
+    	colSelectors.style.width = `${gridWidth + buttonSize + margin}px`; // Make room for select-all button
     	colSelectors.style.height = `${buttonSize}px`;
     	
     	// --- Position individual buttons ---
-    	const rowButtons = Array.from(rowSelectors.children);
-    	const colButtons = Array.from(colSelectors.children).filter(el => !el.classList.contains('select-all'));
+    	// Find row buttons and column buttons (excluding select-all)
+    	const rowButtons = Array.from(rowSelectors.querySelectorAll('.row-selector'));
+    	const colButtons = Array.from(colSelectors.querySelectorAll('.col-selector'));
     	const selectAllBtn = colSelectors.querySelector('.select-all');
-    	
-    	// Clear previous styles from all buttons
-    	[...rowButtons, ...colButtons, selectAllBtn].filter(Boolean).forEach(btn => {
-    		btn.removeAttribute('style');
-    	});
     	
     	// Position row buttons (vertically aligned with each row)
     	rowButtons.forEach((btn, index) => {
@@ -536,9 +527,16 @@ export class UIManager {
     		selectAllBtn.style.left = `${gridWidth + margin}px`;
     		selectAllBtn.style.top = '0px';
     		selectAllBtn.style.margin = '0';
+    		// Make sure it's visible
+    		selectAllBtn.style.display = 'block';
+    		// Set z-index to ensure it's on top
+    		selectAllBtn.style.zIndex = '10';
+    		console.log("Select-All button positioned at: ", selectAllBtn.style.left);
+    	} else {
+    		console.warn("Select-All button not found in column selectors container.");
     	}
     	
-    	console.log(`Updated selector positions: gridSize=${this.game.gridSize}, cellSize=${this.cellSize.toFixed(1)}`);
+    	console.log(`Updated selector positions: gridSize=${this.game.gridSize}, cellSize=${this.cellSize.toFixed(1)}, selectAll=${!!selectAllBtn}`);
     }
     
     // --- SELECTION & BULK ACTION METHODS ---
