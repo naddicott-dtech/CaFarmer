@@ -254,6 +254,141 @@ export class UIManager {
             console.error("Could not find header button group to add dashboard toggle button.");
         }
     }
+
+// --- Setup Hotkeys ---
+    setupHotkeys() {
+        document.addEventListener('keydown', (e) => {
+            // Don't trigger hotkeys if a modal is open or typing in input
+            if (this.isResearchModalOpen || this.isMarketModalOpen || document.querySelector('.modal:not(#help-modal)[style*="display: flex"]')) return;
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+
+            if (e.key === 'Escape') {
+                 this.clearSelection();
+                 this.closeBulkActionPanel();
+                 const cellInfoPanel = document.getElementById('cell-info');
+                 if(cellInfoPanel) cellInfoPanel.style.display = 'none';
+                 this.selectedCell = null;
+                 this.render();
+                 // Attempt to close any open modal except help
+                 document.querySelectorAll('.modal:not(#help-modal)').forEach(modal => this._closeModal(modal));
+                 return;
+             }
+
+            let actionTaken = false;
+            switch(e.key.toLowerCase()) {
+                case 'r': this.repeatLastAction(); actionTaken = true; break;
+                case 'i': // Irrigate
+                    if (this.selectionMode === 'single' && this.selectedCell) { this._handleCellAction('irrigate', this.game.irrigateCell); }
+                    else if (this.selectedCells.length > 0) { this.bulkIrrigate(); }
+                    actionTaken = true; break;
+                case 'f': // Fertilize
+                    if (this.selectionMode === 'single' && this.selectedCell) { this._handleCellAction('fertilize', this.game.fertilizeCell); }
+                     else if (this.selectedCells.length > 0) { this.bulkFertilize(); }
+                    actionTaken = true; break;
+                case 'h': // Harvest
+                     if (this.selectionMode === 'single' && this.selectedCell) { this._handleCellAction('harvest', this.game.harvestCell); }
+                     else if (this.selectedCells.length > 0) { this.bulkHarvest(); }
+                    actionTaken = true; break;
+                case 'd': // Dashboard
+                    const dashboardVisible = document.body.classList.toggle('dashboard-visible');
+                    if (dashboardVisible) { this.updateDashboard(); }
+                    actionTaken = true; break;
+                case 'm': // Mode toggle
+                    this.toggleSelectionMode();
+                    actionTaken = true; break;
+            }
+
+            if (actionTaken && ['r', 'i', 'f', 'h', 'd', 'm'].includes(e.key.toLowerCase())) {
+                e.preventDefault();
+            }
+        });
+        console.log("Hotkey listeners set up."); // Added log
+        // Add hotkey info panel if it doesn't exist
+        if (!document.querySelector('.hotkey-info')) {
+             this.addHotkeyInfoPanel();
+        }
+    }
+
+    // --- Add Hotkey Info Panel ---
+    addHotkeyInfoPanel() {
+        const hotkeyPanel = document.createElement('div');
+        hotkeyPanel.className = 'hotkey-info';
+        hotkeyPanel.innerHTML = `
+            <div class="hotkey-item"><span class="hotkey-key">R</span> Repeat</div>
+            <div class="hotkey-item"><span class="hotkey-key">I</span> Irrigate</div>
+            <div class="hotkey-item"><span class="hotkey-key">F</span> Fertilize</div>
+            <div class="hotkey-item"><span class="hotkey-key">H</span> Harvest</div>
+            <div class="hotkey-item"><span class="hotkey-key">M</span> Sel. Mode</div>
+            <div class="hotkey-item"><span class="hotkey-key">D</span> Dashboard</div>
+            <div class="hotkey-item"><span class="hotkey-key">Esc</span> Clear/Close</div>
+        `;
+         const gridContainer = document.querySelector('.farm-grid-container');
+         if (gridContainer) {
+             gridContainer.appendChild(hotkeyPanel);
+             console.log("Hotkey info panel added."); // Added log
+         } else {
+             console.error("Cannot find grid container to append hotkey info panel.");
+         }
+    }
+
+    // --- Setup Row/Column Selectors ---
+    setupRowColumnSelectors() {
+        const gridContainer = document.querySelector('.farm-grid-container');
+        if (!gridContainer) { console.error("Grid container not found for selectors."); return; }
+        if (gridContainer.querySelector('.row-selectors')) return; // Already added
+
+        const rowSelectors = document.createElement('div'); rowSelectors.className = 'row-selectors';
+        const columnSelectors = document.createElement('div'); columnSelectors.className = 'column-selectors';
+
+        for (let i = 0; i < this.game.gridSize; i++) {
+            const rowBtn = document.createElement('button'); rowBtn.className = 'selector-btn row-selector'; rowBtn.textContent = (i + 1).toString(); rowBtn.dataset.row = i; rowBtn.addEventListener('click', (e) => { e.stopPropagation(); this.selectRow(i); }); rowSelectors.appendChild(rowBtn);
+            const colBtn = document.createElement('button'); colBtn.className = 'selector-btn col-selector'; colBtn.textContent = String.fromCharCode(65 + i); colBtn.dataset.col = i; colBtn.addEventListener('click', (e) => { e.stopPropagation(); this.selectColumn(i); }); columnSelectors.appendChild(colBtn);
+        }
+        const selectAllBtn = document.createElement('button'); selectAllBtn.className = 'selector-btn select-all'; selectAllBtn.textContent = '✓'; selectAllBtn.title = 'Select All'; selectAllBtn.addEventListener('click', (e) => { e.stopPropagation(); this.selectAll(); }); columnSelectors.appendChild(selectAllBtn);
+
+        gridContainer.appendChild(rowSelectors);
+        gridContainer.appendChild(columnSelectors);
+        console.log("Row/Column selectors added."); // Added log
+
+        this.createBulkActionPanel(); // Ensure bulk panel is created after selectors
+    }
+
+    // --- Create Bulk Action Panel ---
+    createBulkActionPanel() {
+         const gridContainer = document.querySelector('.farm-grid-container');
+         if (!gridContainer || document.getElementById('bulk-action-panel')) return; // Don't recreate
+
+        const bulkPanel = document.createElement('div');
+        bulkPanel.className = 'bulk-action-panel';
+        bulkPanel.id = 'bulk-action-panel';
+
+        bulkPanel.innerHTML = `
+            <h3>Bulk Actions (<span id="selected-count">0</span>)</h3>
+            <div class="bulk-action-buttons">
+                <button id="bulk-irrigate" class="btn">Irrigate</button>
+                <button id="bulk-fertilize" class="btn">Fertilize</button>
+                <button id="bulk-harvest" class="btn">Harvest</button>
+                <button id="bulk-plant" class="btn">Plant...</button>
+                <button id="clear-selection" class="btn secondary">Clear</button>
+            </div>
+            <div id="bulk-plant-options">
+                <div class="crop-selection">
+                    <div id="bulk-crop-options"></div>
+                    <button id="bulk-plant-selected" class="btn">Plant Crop</button>
+                </div>
+            </div>
+        `;
+        gridContainer.appendChild(bulkPanel);
+        console.log("Bulk action panel created."); // Added log
+
+        // Add listeners
+        document.getElementById('bulk-irrigate')?.addEventListener('click', () => this.bulkIrrigate());
+        document.getElementById('bulk-fertilize')?.addEventListener('click', () => this.bulkFertilize());
+        document.getElementById('bulk-harvest')?.addEventListener('click', () => this.bulkHarvest());
+        document.getElementById('bulk-plant')?.addEventListener('click', () => this.showBulkPlantOptions());
+        document.getElementById('clear-selection')?.addEventListener('click', () => { this.clearSelection(); this.closeBulkActionPanel(); });
+        document.getElementById('bulk-plant-selected')?.addEventListener('click', () => this.bulkPlant());
+    }
     
     // --- UI Update Methods ---
 
