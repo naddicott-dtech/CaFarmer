@@ -222,57 +222,103 @@ export class UIManager {
     }
 
     setupRowColumnSelectors() {
-        // Find the containers placed by index.html
-        const rowSelectorsContainer = document.querySelector('.row-selectors');
-        const colSelectorsContainer = document.querySelector('.column-selectors');
-        const gridContainer = document.querySelector('.farm-grid-container'); // Still needed for bulk panel
-
-        if (!rowSelectorsContainer || !colSelectorsContainer || !this.game) {
-             console.error("Selector containers or game object not found.");
-             return;
-        }
-        // Clear any previous buttons (e.g., if re-initialized)
-        rowSelectorsContainer.innerHTML = '';
-        colSelectorsContainer.innerHTML = '';
-
-        if (!this.game.gridSize || this.game.gridSize <= 0) {
-             console.error("Cannot setup selector buttons, invalid gridSize:", this.game.gridSize);
-             return;
-        }
-        console.log(`Setting up selector buttons for grid size: ${this.game.gridSize}`);
-
-        for (let i = 0; i < this.game.gridSize; i++) {
-            // Row Button
-            const rowBtn = document.createElement('button');
-            rowBtn.className = 'selector-btn row-selector';
-            rowBtn.textContent = (i + 1).toString();
-            rowBtn.dataset.row = i;
-            rowBtn.title = `Select Row ${i + 1}`;
-            rowBtn.addEventListener('click', (e) => { e.stopPropagation(); this.selectRow(i); });
-            rowSelectorsContainer.appendChild(rowBtn); // Append to existing container
-
-            // Column Button
-            const colBtn = document.createElement('button');
-            colBtn.className = 'selector-btn col-selector';
-            colBtn.textContent = String.fromCharCode(65 + i);
-            colBtn.dataset.col = i;
-            colBtn.title = `Select Column ${String.fromCharCode(65 + i)}`;
-            colBtn.addEventListener('click', (e) => { e.stopPropagation(); this.selectColumn(i); });
-            colSelectorsContainer.appendChild(colBtn); // Append to existing container
-        }
-
-        // Select All Button
-        const selectAllBtn = document.createElement('button');
-        selectAllBtn.className = 'selector-btn select-all';
-        selectAllBtn.textContent = '✓';
-        selectAllBtn.title = 'Select All Plots';
-        selectAllBtn.addEventListener('click', (e) => { e.stopPropagation(); this.selectAll(); });
-        colSelectorsContainer.appendChild(selectAllBtn); // Append to column container
-
-        console.log("Row/Column selector buttons added to containers.");
-
-        // Create bulk panel (still appended to gridContainer for positioning relative to grid)
-        this.createBulkActionPanel();
+    	console.log("Starting complete selector setup...");
+    	
+    	// Find or create containers
+    	let rowSelectorsContainer = document.querySelector('.row-selectors');
+    	let colSelectorsContainer = document.querySelector('.column-selectors');
+    	const gridContainer = document.querySelector('.farm-grid-container');
+    	
+    	// If containers don't exist or we're rebuilding them
+    	if (!rowSelectorsContainer || !colSelectorsContainer) {
+    		// Create new containers if they don't exist
+    		if (!rowSelectorsContainer) {
+    			rowSelectorsContainer = document.createElement('div');
+    			rowSelectorsContainer.className = 'row-selectors';
+    		}
+    		
+    		if (!colSelectorsContainer) {
+    			colSelectorsContainer = document.createElement('div');
+    			colSelectorsContainer.className = 'column-selectors';
+    		}
+    		
+    		// Make sure they're appended to the grid container
+    		if (gridContainer) {
+    			if (!rowSelectorsContainer.parentNode) gridContainer.appendChild(rowSelectorsContainer);
+    			if (!colSelectorsContainer.parentNode) gridContainer.appendChild(colSelectorsContainer);
+    		} else {
+    			console.error("Grid container not found for selector containers");
+    			return;
+    		}
+    	}
+    	
+    	// Clear existing buttons
+    	rowSelectorsContainer.innerHTML = '';
+    	colSelectorsContainer.innerHTML = '';
+    	
+    	// Set container styles for absolute positioning
+    	rowSelectorsContainer.style.position = 'absolute';
+    	rowSelectorsContainer.style.overflow = 'visible';
+    	rowSelectorsContainer.style.zIndex = '100';
+    	
+    	colSelectorsContainer.style.position = 'absolute';
+    	colSelectorsContainer.style.overflow = 'visible';
+    	colSelectorsContainer.style.zIndex = '100';
+    	
+    	// Verify grid size
+    	if (!this.game.gridSize || this.game.gridSize <= 0) {
+    		console.error("Cannot setup selector buttons, invalid gridSize:", this.game.gridSize);
+    		return;
+    	}
+    	
+    	console.log(`Creating selector buttons for grid size: ${this.game.gridSize}`);
+    	
+    	// Create row and column selector buttons
+    	for (let i = 0; i < this.game.gridSize; i++) {
+    		// Row Button (numbers 1-10)
+    		const rowBtn = document.createElement('button');
+    		rowBtn.className = 'selector-btn row-selector';
+    		rowBtn.textContent = (i + 1).toString();
+    		rowBtn.dataset.row = i;
+    		rowBtn.title = `Select Row ${i + 1}`;
+    		rowBtn.addEventListener('click', (e) => { 
+    			e.stopPropagation(); 
+    			this.selectRow(i); 
+    		});
+    		rowSelectorsContainer.appendChild(rowBtn);
+    		
+    		// Column Button (letters A-J)
+    		const colBtn = document.createElement('button');
+    		colBtn.className = 'selector-btn col-selector';
+    		colBtn.textContent = String.fromCharCode(65 + i); // A, B, C, etc.
+    		colBtn.dataset.col = i;
+    		colBtn.title = `Select Column ${String.fromCharCode(65 + i)}`;
+    		colBtn.addEventListener('click', (e) => { 
+    			e.stopPropagation(); 
+    			this.selectColumn(i); 
+    		});
+    		colSelectorsContainer.appendChild(colBtn);
+    	}
+    	
+    	// Select All Button (✓)
+    	const selectAllBtn = document.createElement('button');
+    	selectAllBtn.className = 'selector-btn select-all';
+    	selectAllBtn.textContent = '✓';
+    	selectAllBtn.title = 'Select All Plots';
+    	selectAllBtn.addEventListener('click', (e) => { 
+    		e.stopPropagation(); 
+    		this.selectAll(); 
+    	});
+    	colSelectorsContainer.appendChild(selectAllBtn);
+    	
+    	console.log("Selector buttons created, adding bulk action panel...");
+    	
+    	// Create bulk panel
+    	this.createBulkActionPanel();
+    	
+    	// Position the selectors
+    	console.log("Forcing initial selector positioning...");
+    	this._updateSelectorPositions(0, 0); // Initial positioning will be fixed on render
     }
 
     createBulkActionPanel() {
@@ -472,98 +518,99 @@ export class UIManager {
 
     // Inside ui.js -> UIManager class
     _updateSelectorPositions(offsetX, offsetY) {
-    	const rowSelectors = this.canvas.parentElement?.querySelector('.row-selectors');
-    	const colSelectors = this.canvas.parentElement?.querySelector('.column-selectors');
+    	// Find the selector containers
+    	const rowSelectors = document.querySelector('.row-selectors');
+    	const colSelectors = document.querySelector('.column-selectors');
+    	
+    	// Make sure we have what we need
     	if (!rowSelectors || !colSelectors || !this.game || this.cellSize <= 0 || this.game.gridSize <= 0) {
-    		console.warn(`Skipping selector position update. State: game=${!!this.game}, cellSize=${this.cellSize}, gridSize=${this.game?.gridSize}`);
+    		console.warn(`Skipping selector position update. Missing elements or invalid parameters.`);
     		return;
     	}
-    
-    	const gridHeight = this.cellSize * this.game.gridSize;
+    	
+    	// Calculate grid dimensions
     	const gridWidth = this.cellSize * this.game.gridSize;
+    	const gridHeight = this.cellSize * this.game.gridSize;
     	const buttonSize = 20; // Size of selector buttons
     	const margin = 5; // Margin between buttons and grid
-    
-    	// Reset the containers to ensure clean positioning
-    	rowSelectors.setAttribute('style', ''); // Clear all styles
-    	colSelectors.setAttribute('style', ''); // Clear all styles
-    
-    	// --- Set base container positions ---
-    	rowSelectors.style.position = 'absolute';
-    	rowSelectors.style.display = 'block'; 
+    	
+    	// Position the containers
     	rowSelectors.style.left = `${offsetX - buttonSize - margin}px`;
     	rowSelectors.style.top = `${offsetY}px`;
     	rowSelectors.style.width = `${buttonSize}px`;
     	rowSelectors.style.height = `${gridHeight}px`;
-    	rowSelectors.style.overflow = 'visible'; // IMPORTANT: Allow content to overflow
     	
-    	colSelectors.style.position = 'absolute';
-    	colSelectors.style.display = 'block';
     	colSelectors.style.left = `${offsetX}px`;
     	colSelectors.style.top = `${offsetY - buttonSize - margin}px`;
-    	colSelectors.style.width = `${gridWidth}px`;
+    	colSelectors.style.width = `${gridWidth + buttonSize + margin}px`; // Make room for select-all
     	colSelectors.style.height = `${buttonSize}px`;
-    	colSelectors.style.overflow = 'visible'; // IMPORTANT: Allow content to overflow
     	
-    	// --- Get all selector buttons ---
-    	const rowButtons = rowSelectors.querySelectorAll('.selector-btn');
-    	const colButtons = colSelectors.querySelectorAll('.selector-btn:not(.select-all)');
-    	const selectAllBtn = colSelectors.querySelector('.select-all');
-    	
-    	// --- Position row buttons (numbers 1-10) ---
+    	// Position row buttons (numbers 1-10)
+    	const rowButtons = rowSelectors.querySelectorAll('.row-selector');
     	rowButtons.forEach((btn, index) => {
-    		// Reset button styles
-    		btn.setAttribute('style', '');
-    		
-    		// Set new positioning
     		btn.style.position = 'absolute';
+    		btn.style.width = `${buttonSize}px`;
+    		btn.style.height = `${buttonSize}px`;
     		btn.style.left = '0px';
     		btn.style.top = `${(index * this.cellSize) + (this.cellSize/2) - (buttonSize/2)}px`;
-    		btn.style.margin = '0';
-    		btn.style.zIndex = '10'; // Ensure buttons are on top
     		btn.style.display = 'flex';
     		btn.style.alignItems = 'center';
     		btn.style.justifyContent = 'center';
-    		btn.style.width = `${buttonSize}px`;
-    		btn.style.height = `${buttonSize}px`;
+    		btn.style.margin = '0';
+    		btn.style.padding = '0';
+    		btn.style.zIndex = '101';
+    		btn.style.fontSize = '10px';
+    		
+    		// Highlight row 1 and row 10 for debugging
+    		if (index === 0 || index === 9) {
+    			console.log(`Row ${index+1} button at top: ${btn.style.top}`);
+    		}
     	});
     	
-    	// --- Position column buttons (letters A-J) ---
+    	// Position column buttons (letters A-J)
+    	const colButtons = colSelectors.querySelectorAll('.col-selector');
     	colButtons.forEach((btn, index) => {
-    		// Reset button styles
-    		btn.setAttribute('style', '');
-    		
-    		// Set new positioning
     		btn.style.position = 'absolute';
+    		btn.style.width = `${buttonSize}px`;
+    		btn.style.height = `${buttonSize}px`;
     		btn.style.top = '0px';
     		btn.style.left = `${(index * this.cellSize) + (this.cellSize/2) - (buttonSize/2)}px`;
-    		btn.style.margin = '0';
-    		btn.style.zIndex = '10'; // Ensure buttons are on top
     		btn.style.display = 'flex';
     		btn.style.alignItems = 'center';
     		btn.style.justifyContent = 'center';
-    		btn.style.width = `${buttonSize}px`;
-    		btn.style.height = `${buttonSize}px`;
+    		btn.style.margin = '0';
+    		btn.style.padding = '0';
+    		btn.style.zIndex = '101';
+    		btn.style.fontSize = '10px';
+    		
+    		// Highlight column A and column J for debugging
+    		if (index === 0 || index === 9) {
+    			console.log(`Column ${String.fromCharCode(65 + index)} button at left: ${btn.style.left}`);
+    		}
     	});
     	
-    	// --- Position the select all button ---
+    	// Position the select all button
+    	const selectAllBtn = colSelectors.querySelector('.select-all');
     	if (selectAllBtn) {
-    		selectAllBtn.setAttribute('style', '');
     		selectAllBtn.style.position = 'absolute';
+    		selectAllBtn.style.width = `${buttonSize}px`;
+    		selectAllBtn.style.height = `${buttonSize}px`;
     		selectAllBtn.style.top = '0px';
     		selectAllBtn.style.left = `${gridWidth + margin}px`;
-    		selectAllBtn.style.margin = '0';
-    		selectAllBtn.style.zIndex = '10';
     		selectAllBtn.style.display = 'flex';
     		selectAllBtn.style.alignItems = 'center';
     		selectAllBtn.style.justifyContent = 'center';
-    		selectAllBtn.style.width = `${buttonSize}px`;
-    		selectAllBtn.style.height = `${buttonSize}px`;
+    		selectAllBtn.style.margin = '0';
+    		selectAllBtn.style.padding = '0';
+    		selectAllBtn.style.zIndex = '101';
+    		selectAllBtn.style.fontSize = '10px';
+    		
     		console.log(`Select-All button positioned at: ${selectAllBtn.style.left}`);
+    	} else {
+    		console.warn("Select-All button not found in selectors.");
     	}
     	
-    	// Log for debugging
-    	console.log(`Updated selector positions: gridSize=${this.game.gridSize}, cellSize=${this.cellSize.toFixed(1)}, selectAll=${!!selectAllBtn}`);
+    	console.log(`Updated selector positions. Grid: ${gridWidth.toFixed(1)}x${gridHeight.toFixed(1)}, Offset: (${offsetX.toFixed(1)},${offsetY.toFixed(1)})`);
     }
     
     // --- SELECTION & BULK ACTION METHODS ---
