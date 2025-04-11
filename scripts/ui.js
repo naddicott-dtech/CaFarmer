@@ -629,9 +629,9 @@ export class UIManager {
     showBulkPlantOptions() { const options = document.getElementById('bulk-plant-options'); const cropOptionsDiv = document.getElementById('bulk-crop-options'); if (!options || !cropOptionsDiv) return; options.style.display = 'block'; cropOptionsDiv.innerHTML = ''; crops.forEach(crop => { if (crop.id !== 'empty') { const costToPlant = formatCurrency(Math.round(crop.basePrice * this.game.plantingCostFactor)); cropOptionsDiv.innerHTML += `<div class="crop-option"><input type="radio" id="bulk-crop-${crop.id}" name="bulk-crop-select" value="${crop.id}"><label for="bulk-crop-${crop.id}">${crop.name} (${costToPlant})</label></div>`; } }); }
 
     fixSelectorVisibility() {
-    	console.log("Applying final visibility fix to selectors...");
+    	console.log("Applying enhanced visibility fix to all selectors...");
     	
-    	// Make sure we're attached to document body
+    	// Find selector containers
     	const rowSelectors = document.querySelector('.row-selectors');
     	const colSelectors = document.querySelector('.column-selectors');
     	
@@ -640,48 +640,13 @@ export class UIManager {
     		return;
     	}
     	
-    	// Force containers to be on top of everything
-    	rowSelectors.style.zIndex = '9999';
-    	colSelectors.style.zIndex = '9999';
-    	
-    	// Style all selector buttons with more prominent styling
-    	const allButtons = [...rowSelectors.querySelectorAll('.selector-btn'), 
-    					     ...colSelectors.querySelectorAll('.selector-btn')];
-    					     
-    	allButtons.forEach(btn => {
-    		// Most visible styling possible
-    		btn.style.position = 'absolute';
-    		btn.style.backgroundColor = '#FF5722'; // Bright orange
-    		btn.style.color = 'white';
-    		btn.style.fontWeight = 'bold';
-    		btn.style.width = '24px'; // Slightly larger
-    		btn.style.height = '24px';
-    		btn.style.borderRadius = '50%'; // Make them circular
-    		btn.style.border = '2px solid white'; // White border
-    		btn.style.boxShadow = '0 0 5px rgba(0,0,0,0.5)'; // Shadow
-    		btn.style.display = 'flex';
-    		btn.style.alignItems = 'center';
-    		btn.style.justifyContent = 'center';
-    		btn.style.zIndex = '9999'; // Very high z-index
-    		btn.style.fontSize = '12px'; // Larger text
-    		btn.style.userSelect = 'none';
-    		btn.style.pointerEvents = 'auto'; // Ensure clickable
-    		btn.style.opacity = '1'; // Full opacity
-    		btn.style.visibility = 'visible'; // Ensure visibility
-    	});
-    	
-    	// Fix parent containers if they're hiding our buttons
-    	let parent = rowSelectors.parentNode;
-    	while (parent && parent !== document.body) {
-    		parent.style.overflow = 'visible';
-    		parent.style.position = 'relative';
-    		parent = parent.parentNode;
-    	}
-    	
-    	// Try making sure selectors are attached to a visible container
+    	// Ensure parent container has proper positioning
     	const gridContainer = document.querySelector('.farm-grid-container');
     	if (gridContainer) {
-    		// Ensure these are attached to grid container for visibility
+    		gridContainer.style.position = 'relative';
+    		gridContainer.style.overflow = 'visible';
+    		
+    		// Ensure these are attached to grid container directly
     		if (rowSelectors.parentNode !== gridContainer) {
     			gridContainer.appendChild(rowSelectors);
     		}
@@ -690,8 +655,117 @@ export class UIManager {
     		}
     	}
     	
-    	console.log("Visibility fix applied to all selector buttons");
+    	// Position the containers absolutely relative to grid container
+    	rowSelectors.style.position = 'absolute';
+    	rowSelectors.style.left = '-30px'; // Position further left
+    	rowSelectors.style.top = '0';
+    	rowSelectors.style.height = '100%';
+    	rowSelectors.style.overflow = 'visible';
+    	rowSelectors.style.zIndex = '9999';
+    	
+    	colSelectors.style.position = 'absolute';
+    	colSelectors.style.left = '0';
+    	colSelectors.style.top = '-30px'; // Position further up
+    	colSelectors.style.width = '100%';
+    	colSelectors.style.overflow = 'visible';
+    	colSelectors.style.zIndex = '9999';
+    	
+    	// Get all row and column buttons
+    	const rowButtons = rowSelectors.querySelectorAll('.selector-btn');
+    	const colButtons = colSelectors.querySelectorAll('.selector-btn:not(.select-all)');
+    	const selectAllBtn = colSelectors.querySelector('.select-all');
+    	
+    	// Adjust row button styles for maximum visibility
+    	rowButtons.forEach((btn, index) => {
+    		// Apply high-visibility styles
+    		btn.style.position = 'absolute';
+    		btn.style.left = '0';
+    		btn.style.top = `${(index * 80) + 40 - 12}px`; // Approximate positioning
+    		btn.style.width = '24px';
+    		btn.style.height = '24px';
+    		btn.style.backgroundColor = '#FF5722'; // Bright orange
+    		btn.style.color = 'white';
+    		btn.style.fontWeight = 'bold';
+    		btn.style.borderRadius = '50%';
+    		btn.style.border = '2px solid white';
+    		btn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.5)';
+    		btn.style.zIndex = '10000';
+    		btn.style.display = 'flex';
+    		btn.style.alignItems = 'center';
+    		btn.style.justifyContent = 'center';
+    		btn.style.fontSize = '12px';
+    		btn.style.transform = 'scale(1.2)'; // Make buttons slightly larger
+    		
+    		console.log(`Enhanced row button ${index+1} positioned at top: ${btn.style.top}`);
+    	});
+    	
+    	// Adjust column button styles for maximum visibility
+    	colButtons.forEach((btn, index) => {
+    		// Apply high-visibility styles
+    		btn.style.position = 'absolute';
+    		btn.style.left = `${(index * 80) + 40 - 12}px`; // Approximate positioning
+    		btn.style.top = '0';
+    		btn.style.width = '24px';
+    		btn.style.height = '24px';
+    		btn.style.backgroundColor = '#FF5722'; // Bright orange
+    		btn.style.color = 'white';
+    		btn.style.fontWeight = 'bold';
+    		btn.style.borderRadius = '50%';
+    		btn.style.border = '2px solid white';
+    		btn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.5)';
+    		btn.style.zIndex = '10000';
+    		btn.style.display = 'flex';
+    		btn.style.alignItems = 'center';
+    		btn.style.justifyContent = 'center';
+    		btn.style.fontSize = '12px';
+    		btn.style.transform = 'scale(1.2)'; // Make buttons slightly larger
+    		
+    		console.log(`Enhanced column button ${String.fromCharCode(65 + index)} positioned at left: ${btn.style.left}`);
+    	});
+    	
+    	// Adjust select-all button for maximum visibility
+    	if (selectAllBtn) {
+    		selectAllBtn.style.position = 'absolute';
+    		selectAllBtn.style.left = '100%';
+    		selectAllBtn.style.top = '0';
+    		selectAllBtn.style.width = '24px';
+    		selectAllBtn.style.height = '24px';
+    		selectAllBtn.style.backgroundColor = '#4CAF50'; // Different color to distinguish
+    		selectAllBtn.style.color = 'white';
+    		selectAllBtn.style.fontWeight = 'bold';
+    		selectAllBtn.style.borderRadius = '50%';
+    		selectAllBtn.style.border = '2px solid white';
+    		selectAllBtn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.5)';
+    		selectAllBtn.style.zIndex = '10000';
+    		selectAllBtn.style.display = 'flex';
+    		selectAllBtn.style.alignItems = 'center';
+    		selectAllBtn.style.justifyContent = 'center';
+    		selectAllBtn.style.fontSize = '12px';
+    		selectAllBtn.style.marginLeft = '10px';
+    		selectAllBtn.style.transform = 'scale(1.2)'; // Make button slightly larger
+    		
+    		console.log(`Enhanced select-all button positioned`);
+    	}
+    	
+    	// Add CSS to ensure grid container always shows overflow
+    	const style = document.createElement('style');
+    	style.textContent = `
+    		.farm-grid-container { overflow: visible !important; }
+    		.grid-and-selectors-wrapper { overflow: visible !important; }
+    	`;
+    	document.head.appendChild(style);
+    	
+    	console.log("Enhanced visibility fix applied to all selector buttons");
+    	
+    	// Add a forced refresh after a short delay to ensure everything is visible
+    	setTimeout(() => {
+    		this.render();
+    		console.log("Forced render after visibility fix");
+    	}, 500);
     }
+    
+    // Add this call at the end of your UIManager constructor
+    // this.fixSelectorVisibility();
     
     _performBulkAction(actionType, gameMethod, eventVerb) {
         console.log(`[UI Debug] Performing bulk action: ${actionType}`);
