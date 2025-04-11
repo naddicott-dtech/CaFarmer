@@ -503,35 +503,42 @@ export class UIManager {
     _updateSelectorPositions(offsetX, offsetY) {
         const rowSelectors = this.canvas.parentElement?.querySelector('.row-selectors');
         const colSelectors = this.canvas.parentElement?.querySelector('.column-selectors');
-        // Add guard clauses for safety
         if (!rowSelectors || !colSelectors || !this.game || this.cellSize <= 0 || this.game.gridSize <= 0) {
-             console.warn("Skipping selector position update due to invalid state.");
-             return;
+             // Keep the warning, it might still happen initially but should recover
+             console.warn(`Skipping selector position update. State: game=${!!this.game}, cellSize=${this.cellSize}, gridSize=${this.game?.gridSize}`);
+            return;
         }
 
         const gridHeight = this.cellSize * this.game.gridSize;
         const gridWidth = this.cellSize * this.game.gridSize;
+        const selectorWidth = 24; // Use a fixed width approx based on CSS
+        const selectorHeight = 24;// Use a fixed height approx based on CSS
+        const margin = 5; // Margin between grid and selectors
 
-        // Row selectors: Position left of grid, aligned vertically with grid bounds
-        rowSelectors.style.left = `${offsetX - Math.max(25, this.cellSize * 0.7)}px`; // Position left, adjust offset
+        // --- Row Selectors ---
+        // Position container just LEFT of the grid
+        rowSelectors.style.position = 'absolute';
+        rowSelectors.style.left = `${offsetX - selectorWidth - margin}px`; // Position left edge
         rowSelectors.style.top = `${offsetY}px`; // Align top edge with grid
-        rowSelectors.style.height = `${gridHeight}px`; // Set height to match grid
+        rowSelectors.style.height = `${gridHeight}px`; // Match grid height
+        rowSelectors.style.width = `${selectorWidth}px`; // Set explicit width
+        // CSS (.row-selectors) should handle the flex display and vertical distribution
 
-        // Column selectors: Position above grid, aligned horizontally with grid bounds
-        colSelectors.style.top = `${offsetY - Math.max(25, this.cellSize * 0.7)}px`; // Position above, adjust offset
+        // --- Column Selectors ---
+        // Position container just ABOVE the grid
+        colSelectors.style.position = 'absolute';
+        colSelectors.style.top = `${offsetY - selectorHeight - margin}px`; // Position top edge
         colSelectors.style.left = `${offsetX}px`; // Align left edge with grid
-        colSelectors.style.width = `${gridWidth}px`; // Set width to match grid
+        colSelectors.style.width = `${gridWidth}px`; // Match grid width
+        colSelectors.style.height = `${selectorHeight}px`; // Set explicit height
+        // CSS (.column-selectors) should handle the flex display and horizontal distribution
 
-        // Adjust individual button sizes dynamically based on calculated cellSize
-         document.querySelectorAll('.selector-btn').forEach(btn => {
-             const btnSize = Math.max(15, Math.min(24, this.cellSize * 0.6)); // Smaller relative size
-             btn.style.width = `${btnSize}px`;
-             btn.style.height = `${btnSize}px`;
-             btn.style.fontSize = `${btnSize * 0.5}px`;
-             btn.style.lineHeight = `${btnSize}px`; // Adjust line height for vertical centering
-         });
+        // --- Remove dynamic button resizing for now ---
+        // document.querySelectorAll('.selector-btn').forEach(btn => { ... });
+
+        console.log(`Updated Selector Pos: Row Left=${rowSelectors.style.left}, Col Top=${colSelectors.style.top}`);
     }
-
+    
     // --- SELECTION & BULK ACTION METHODS ---
     selectCell(row, col) { if (this.selectionMode !== 'single') { this.clearSelection(); this.selectionMode = 'single'; } this.selectedCell = { row, col }; this.showCellInfo(row, col); this.closeBulkActionPanel(); this.render(); }
     toggleCellInSelection(row, col) { if (this.selectionMode !== 'multi') { this.clearSelection(); this.selectionMode = 'multi'; } const cellIndex = this.selectedCells.findIndex(cell => cell.row === row && cell.col === col); if (cellIndex >= 0) { this.selectedCells.splice(cellIndex, 1); } else { this.selectedCells.push({ row, col }); } this.updateBulkActionPanel(); this.render(); }
