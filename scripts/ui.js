@@ -446,7 +446,104 @@ export class UIManager {
     closeBulkActionPanel() { const panel = document.getElementById('bulk-action-panel'); if (panel) { panel.classList.remove('visible'); const plantOptions = document.getElementById('bulk-plant-options'); if (plantOptions) plantOptions.style.display = 'none'; } }
     updateBulkActionPanel() { const countSpan = document.getElementById('selected-count'); if (countSpan) countSpan.textContent = this.selectedCells.length; if (this.selectedCells.length > 0) { this.showBulkActionPanel(); } else { this.closeBulkActionPanel(); } }
     showBulkPlantOptions() { const options = document.getElementById('bulk-plant-options'); const cropOptionsDiv = document.getElementById('bulk-crop-options'); if (!options || !cropOptionsDiv) return; options.style.display = 'block'; cropOptionsDiv.innerHTML = ''; crops.forEach(crop => { if (crop.id !== 'empty') { const costToPlant = formatCurrency(Math.round(crop.basePrice * this.game.plantingCostFactor)); cropOptionsDiv.innerHTML += `<div class="crop-option"><input type="radio" id="bulk-crop-${crop.id}" name="bulk-crop-select" value="${crop.id}"><label for="bulk-crop-${crop.id}">${crop.name} (${costToPlant})</label></div>`; } }); }
-    _performBulkAction(actionType, gameMethod, eventVerb) { console.log(`[UI Debug] Performing bulk action: ${actionType}`); if (this.selectedCells.length === 0 || this.isBulkActionInProgress) return; let successCount = 0; let costTotal = 0; let incomeTotal = 0; this.isBulkActionInProgress = true; console.log(`[UI Debug] Starting loop for ${this.selectedCells.length} cells.`); for (const cellCoord of this.selectedCells) { console.log(`[UI Debug] Attempting ${actionType} on cell:`, cellCoord.row, cellCoord.col); if (typeof gameMethod !== 'function') { console.error(`[UI Debug] Error: gameMethod for action ${actionType} is not a function on game object.`); continue; } const result = gameMethod.call(this.game, cellCoord.row, cellCoord.col); console.log(`[UI Debug] Result for cell (${cellCoord.row},${cellCoord.col}):`, result); if (typeof result === 'boolean' && result) { successCount++; if (actionType === 'irrigate') costTotal += this.game.irrigationCost; if (actionType === 'fertilize') costTotal += this.game.fertilizeCost; } else if (typeof result === 'object' && result.success) { console.log(`[UI Debug] Success on cell (${cellCoord.row},${cellCoord.col}), Income: ${result.income || 0}`); successCount++; if (result.cost) costTotal += result.cost; if (result.income) incomeTotal += result.income; } else { console.log(`[UI Debug] Action failed or ineligible for cell (${cellCoord.row},${cellCoord.col}). Reason:`, result?.reason || 'N/A'); } } console.log(`[UI Debug] Loop finished. Success count: ${successCount}, Total Income: ${incomeTotal}, Total Cost: ${costTotal}`); this.isBulkActionInProgress = false; if (successCount > 0) { console.log(`[UI Debug] Action successful for ${successCount} plots. Adding event and updating HUD.`); this.lastAction = { type: `bulk${actionType.charAt(0).toUpperCase() + actionType.slice(1)}`, params: { cells: [...this.selectedCells] } }; let eventMsg = `Bulk ${eventVerb} ${successCount} plots.`; if (costTotal > 0) eventMsg += ` Total cost: ${formatCurrency(costTotal)}.`; if (incomeTotal > 0 && actionType === 'harvest') { eventMsg += ` Total income: ${formatCurrency(incomeTotal)}.`; } if (typeof this.game.addEvent === 'function') { this.game.addEvent(eventMsg); } else { console.warn("game.addEvent method not found"); } this.updateHUD(); } else { console.log(`[UI Debug] No successful actions. Adding 'no eligible plots' event.`); if (typeof this.game.addEvent === 'function') { this.game.addEvent(`Bulk ${eventVerb}: No eligible plots found in selection.`, true); } } this.render(); }
+    
+    _performBulkAction(actionType, gameMethod, eventVerb) {
+        console.log(`[UI Debug] Performing bulk action: ${actionType}`);
+        if (this.selectedCells.length === 0 || this.isBulkActionInProgress) {
+             console.log(`[UI Debug] Bulk action ${actionType} aborted (No selection or already in progress).`);
+             return; // Exit early
+        }
+
+        let successCount = 0;
+        let costTotal = 0;
+        let incomeTotal = 0;
+        this.isBulkActionInProgress = true; // Lock UI during processing
+
+        // Log balance BEFORE the loop starts
+        console.log(`[UI Debug] Balance BEFORE bulk ${actionType}: ${formatCurrency(this.game.balance)}`);
+        console.log(`[UI Debug] Starting loop for ${this.selectedCells.length} cells.`);
+
+        // Create a temporary copy of selected cells in case the original array is modified during iteration (unlikely here but safer)
+        const cellsToProcess = [...this.selectedCells];
+
+        for (const cellCoord of cellsToProcess) {
+            console.log(`[UI Debug] Attempting ${actionType} on cell: (${cellCoord.row}, ${cellCoord.col})`);
+
+            // Ensure gameMethod exists before calling
+            if (typeof gameMethod !== 'function') {
+                 console.error(`[UI Debug] Error: gameMethod for action ${actionType} is not a function on game object.`);
+                 continue; // Skip this cell if method is invalid
+            }
+
+            // Call the actual game logic method (e.g., game.irrigateCell, game.harvestCell)
+            const result = gameMethod.call(this.game, cellCoord.row, cellCoord.col);
+            console.log(`[UI Debug] Result for cell (${cellCoord.row},${cellCoord.col}):`, JSON.stringify(result)); // Log the result object
+
+            // Process the result
+            if (typeof result === 'boolean' && result) { // Simple success
+                successCount++;
+                // Estimate cost if not returned (less accurate but provides some feedback)
+                 if (actionType === 'irrigate') costTotal += this.game.irrigationCost;
+                 if (actionType === 'fertilize') costTotal += this.game.fertilizeCost;
+                 console.log(`[UI Debug] Simple success on cell (${cellCoord.row},${cellCoord.col})`);
+            } else if (typeof result === 'object' && result.success) { // Object with success property
+                 console.log(`[UI Debug] Success on cell (${cellCoord.row},${cellCoord.col}), Income: ${result.income || 0}, Cost: ${result.cost || 0}`);
+                successCount++;
+                if (result.cost) costTotal += Number(result.cost) || 0; // Ensure cost is numeric
+                if (result.income) incomeTotal += Number(result.income) || 0; // Ensure income is numeric
+            } else { // Action failed or cell was ineligible
+                 console.log(`[UI Debug] Action failed or ineligible for cell (${cellCoord.row},${cellCoord.col}). Reason:`, result?.reason || 'N/A');
+            }
+        } // End of loop
+
+        console.log(`[UI Debug] Loop finished. Success count: ${successCount}, Total Income (from results): ${incomeTotal}, Total Cost (from results): ${costTotal}`);
+
+        // Log balance AFTER the loop finishes (reflects changes made *inside* game methods)
+        console.log(`[UI Debug] Balance AFTER bulk ${actionType} loop: ${formatCurrency(this.game.balance)}`);
+
+        this.isBulkActionInProgress = false; // Unlock UI
+
+        // Add summary event and update UI if any action succeeded
+        if (successCount > 0) {
+            console.log(`[UI Debug] Action successful for ${successCount} plots. Adding event and ensuring final HUD update.`);
+            // Set last action (important: use a copy of the cells used in *this* action)
+            this.lastAction = { type: `bulk${actionType.charAt(0).toUpperCase() + actionType.slice(1)}`, params: { cells: cellsToProcess } };
+
+            // Build event message
+            let eventMsg = `Bulk ${eventVerb} ${successCount} plots.`;
+             if (costTotal > 0) { // Use cost calculated from results if available
+                 eventMsg += ` Total cost: ${formatCurrency(costTotal)}.`;
+             } else if (actionType === 'irrigate' && successCount > 0) { // Fallback estimate for irrigate
+                 eventMsg += ` Total cost approx: ${formatCurrency(successCount * this.game.irrigationCost)}.`;
+             } else if (actionType === 'fertilize' && successCount > 0) { // Fallback estimate for fertilize
+                 eventMsg += ` Total cost approx: ${formatCurrency(successCount * this.game.fertilizeCost)}.`;
+             }
+            // Add income specifically for harvest
+            if (incomeTotal > 0 && actionType === 'harvest') {
+                eventMsg += ` Total income: ${formatCurrency(incomeTotal)}.`;
+            }
+
+            // Add event to game log and update UI event list
+            if (typeof this.game.addEvent === 'function') {
+                 this.game.addEvent(eventMsg); // Let game handle adding to its list
+                 this.updateEventsList(); // Tell UI to refresh the list display
+            } else { console.warn("game.addEvent method not found"); }
+
+            // Final HUD update AFTER all processing
+            this.updateHUD();
+             console.log(`[UI Debug] Balance immediately AFTER final updateHUD() call: ${formatCurrency(this.game.balance)}`);
+        } else {
+            // Log failure case
+            console.log(`[UI Debug] No successful actions. Adding 'no eligible plots' event.`);
+            if (typeof this.game.addEvent === 'function') {
+                 this.game.addEvent(`Bulk ${eventVerb}: No eligible plots found in selection.`, true);
+                 this.updateEventsList(); // Update list even on failure message
+            }
+        }
+
+        this.render(); // Final grid render
+    } // End _performBulkAction
+    
     bulkIrrigate() { this._performBulkAction('irrigate', this.game.irrigateCell, 'irrigate'); }
     bulkFertilize() { this._performBulkAction('fertilize', this.game.fertilizeCell, 'fertilize'); }
     bulkHarvest() { this._performBulkAction('harvest', this.game.harvestCell, 'harvest'); }
