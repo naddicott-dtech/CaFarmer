@@ -91,50 +91,57 @@ h1 {
     border: 1px solid var(--border-color); /* Add border for visual clarity */
 }
 
-.row-selectors {
-    grid-column: 1 / 2;
-    grid-row: 2 / 3;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-around;
-    align-items: center;
-    padding: 0; margin: 0; box-sizing: border-box;
-    /* Explicit width might help */
-    width: 25px;
-    overflow: hidden; /* Hide overflow if buttons somehow exceed */
+/* Make sure our selectors aren't constrained by CSS */
+.row-selectors, .column-selectors {
+    overflow: visible !important;
+    position: absolute !important;
+    z-index: 100 !important; /* Make sure selectors stay on top */
 }
 
-.column-selectors {
-    grid-column: 2 / 3;
-    grid-row: 1 / 2;
-    display: flex;
-    flex-direction: row;
-    justify-content: space-around;
-    align-items: center;
-    padding: 0; margin: 0; box-sizing: border-box;
-     /* Explicit height might help */
-     height: 25px;
-     overflow: hidden;
+/* Ensure the grid container has proper positioning context */
+.farm-grid-container, .grid-and-selectors-wrapper {
+    position: relative !important;
+    overflow: visible !important;
 }
 
+/* Make sure all selectors are clearly visible */
 .selector-btn {
-    background: rgba(42, 157, 143, 0.8);
-    color: white;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 3px;
-    cursor: pointer;
-    font-size: 10px;
-    font-weight: bold;
-    border: none;
-    line-height: 1;
-    flex-shrink: 0;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    position: absolute !important;
+    z-index: 100 !important;
+    width: 20px !important;
+    height: 20px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 10px !important;
+    background: rgba(42, 157, 143, 0.9) !important; /* Make slightly more opaque */
+    color: white !important;
+    font-weight: bold !important;
+    border-radius: 3px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important; /* Add shadow for better visibility */
 }
-.selector-btn:hover { background: rgba(42, 157, 143, 1); }
-.selector-btn.active { background: var(--danger-color); }
+
+/* Style for selected buttons */
+.selector-btn.active {
+    background-color: var(--danger-color) !important;
+    transform: scale(1.1) !important; /* Slightly enlarge for better visibility */
+}
+
+/* Hover effect */
+.selector-btn:hover {
+    background-color: rgba(42, 157, 143, 1) !important;
+    transform: scale(1.1) !important;
+    cursor: pointer !important;
+}
+
+/* Reset flexbox layouts that might be interfering */
+.row-selectors, .column-selectors {
+    display: block !important;
+    flex-direction: unset !important;
+    justify-content: unset !important;
+}
 /* --- End Grid & Selector Layout --- */
 
 .sidebar {
