@@ -1,78 +1,59 @@
-/**
- * California Climate Farmer - Main Entry Point (UI Version)
- *
- * Initializes and starts the interactive game using the UI Manager.
- * Assumes this runs in a browser environment with the necessary HTML.
- */
-
-console.log('Loading main.js for UI game...');
-
+// scripts/main.js
 import { CaliforniaClimateFarmer } from './game.js';
+import { UIManager } from './ui.js'; // Keep this if ui.js needs specific setup later, otherwise might be handled by game.js
 
-// Global game instance for the UI
-let gameInstance = null;
+console.log("Loading main.js for UI game..."); // Changed log slightly
 
-// Initialize the game once the DOM is ready
-function initializeGame() {
-    console.log("DOM ready - Initializing UI game controls...");
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("DOM ready - Initializing UI game controls..."); // Changed log slightly
 
-    const splashScreen = document.getElementById('splash-screen');
     const regularGameBtn = document.getElementById('regular-game-btn');
-    // Remove or comment out references to test-mode-btn, test-options, run-selected-tests-btn
+    const splashScreen = document.getElementById('splash-screen');
 
-    if (splashScreen && regularGameBtn) {
-        // Clone and replace to ensure clean event listeners
-        const newRegularGameBtn = regularGameBtn.cloneNode(true);
-        regularGameBtn.parentNode.replaceChild(newRegularGameBtn, regularGameBtn);
-
-        newRegularGameBtn.addEventListener('click', () => {
-            console.log("Starting regular game...");
-            splashScreen.style.display = 'none'; // Hide splash
-            startRegularGame();
-        });
-
-         // Hide test mode button if it still exists in HTML
-         const testBtn = document.getElementById('test-mode-btn');
-         if(testBtn) testBtn.style.display = 'none';
-
-    } else {
-        console.error('Splash screen or regular game button not found. Cannot initialize.');
-        // Optionally display an error to the user
-        document.body.innerHTML = '<p style="color: red; font-size: 1.2em;">Error: Game UI elements missing. Cannot start.</p>';
-    }
-
-     // Ensure test options panel is hidden
-     const testOptionsPanel = document.getElementById('test-options');
-     if (testOptionsPanel) testOptionsPanel.style.display = 'none';
-}
-
-function startRegularGame() {
-    if (gameInstance) {
-        console.warn("Game already running.");
+    if (!regularGameBtn) {
+        console.error("Start Regular Game button not found! Cannot start game.");
         return;
     }
-    try {
-        // Create game instance (NOT headless)
-        console.log("Creating game instance for UI...");
-        gameInstance = new CaliforniaClimateFarmer({ headless: false }); // Explicitly set headless to false
-        console.log("Game instance created, starting UI game loop...");
-        gameInstance.start(); // This will start the requestAnimationFrame loop
-        console.log("UI Game started successfully.");
-    } catch (error) {
-        console.error("Error starting UI game:", error);
-        alert("Error starting game. Check console for details.");
-        // Display error in UI?
+    if (!splashScreen) {
+        console.warn("Splash screen not found! Game might start immediately if button exists.");
+    } else {
+        console.log("Splash screen found.");
     }
-}
 
-// --- Initialization ---
-// Wait for the DOM to load before setting up controls
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeGame);
-} else {
-    // DOM already loaded
-    initializeGame();
-}
+    // Listener that ACTUALLY starts the game
+    regularGameBtn.addEventListener('click', () => {
+        console.log("Main.js: Regular game start triggered from button click."); // Clarified log source
 
-// Export game instance for potential debugging from console
-export { gameInstance };
+        // Ensure splash screen is hidden
+        if (splashScreen) {
+            splashScreen.style.display = 'none';
+        } else {
+            console.warn("Splash screen was not found to hide.");
+        }
+
+        // --- Initialize and start the game ---
+        try {
+             console.log("Main.js: Creating game instance for UI..."); // Added log
+            // Ensure the game instance is not created multiple times if button is somehow clicked twice
+            if (window.currentGameInstance) {
+                console.warn("Game instance already exists. Ignoring second start request.");
+                return;
+            }
+
+            const game = new CaliforniaClimateFarmer({
+                headless: false,
+                testMode: false,
+                autoTerminate: false
+            });
+             console.log("Main.js: Game instance created, starting UI game loop..."); // Added log
+             window.currentGameInstance = game; // Optional: Store globally to prevent duplicates
+            game.start(); // Start the game loop
+            console.log("Main.js: UI Game started successfully."); // Changed log slightly
+        } catch (error) {
+            console.error("Main.js: Failed to initialize or start the game:", error);
+            document.body.innerHTML = `<div style="color: red; padding: 20px;"><h1>Error Starting Game</h1><p>${error.message}</p><pre>${error.stack}</pre></div>`;
+        }
+    });
+
+    console.log("Main.js: Listener for game start attached.");
+});
