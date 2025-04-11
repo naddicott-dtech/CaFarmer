@@ -428,10 +428,33 @@ export class UIManager {
     _updateSelectorPositions(offsetX, offsetY) {
         const rowSelectors = this.canvas.parentElement?.querySelector('.row-selectors');
         const colSelectors = this.canvas.parentElement?.querySelector('.column-selectors');
-        if (!rowSelectors || !colSelectors || this.cellSize <= 0 || this.game.gridSize <= 0) return; // Guard clause
-        const gridHeight = this.cellSize * this.game.gridSize; const gridWidth = this.cellSize * this.game.gridSize;
-        rowSelectors.style.left = `${offsetX - 25}px`; rowSelectors.style.top = `${offsetY + gridHeight / 2}px`;
-        colSelectors.style.top = `${offsetY - 25}px`; colSelectors.style.left = `${offsetX + gridWidth / 2}px`;
+        // Add guard clauses for safety
+        if (!rowSelectors || !colSelectors || !this.game || this.cellSize <= 0 || this.game.gridSize <= 0) {
+             console.warn("Skipping selector position update due to invalid state.");
+             return;
+        }
+
+        const gridHeight = this.cellSize * this.game.gridSize;
+        const gridWidth = this.cellSize * this.game.gridSize;
+
+        // Row selectors: Position left of grid, aligned vertically with grid bounds
+        rowSelectors.style.left = `${offsetX - Math.max(25, this.cellSize * 0.7)}px`; // Position left, adjust offset
+        rowSelectors.style.top = `${offsetY}px`; // Align top edge with grid
+        rowSelectors.style.height = `${gridHeight}px`; // Set height to match grid
+
+        // Column selectors: Position above grid, aligned horizontally with grid bounds
+        colSelectors.style.top = `${offsetY - Math.max(25, this.cellSize * 0.7)}px`; // Position above, adjust offset
+        colSelectors.style.left = `${offsetX}px`; // Align left edge with grid
+        colSelectors.style.width = `${gridWidth}px`; // Set width to match grid
+
+        // Adjust individual button sizes dynamically based on calculated cellSize
+         document.querySelectorAll('.selector-btn').forEach(btn => {
+             const btnSize = Math.max(15, Math.min(24, this.cellSize * 0.6)); // Smaller relative size
+             btn.style.width = `${btnSize}px`;
+             btn.style.height = `${btnSize}px`;
+             btn.style.fontSize = `${btnSize * 0.5}px`;
+             btn.style.lineHeight = `${btnSize}px`; // Adjust line height for vertical centering
+         });
     }
 
     // --- SELECTION & BULK ACTION METHODS ---
