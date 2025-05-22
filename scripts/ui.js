@@ -41,8 +41,6 @@ export class UIManager {
             }
         }, 5000);
 
-        this.fixSelectorVisibility();
-
         console.log("UIManager initialized.");
     }
 
@@ -224,105 +222,86 @@ export class UIManager {
     }
 
     setupRowColumnSelectors() {
-    	console.log("Starting complete selector setup...");
-    	
-    	// Find or create containers
-    	let rowSelectorsContainer = document.querySelector('.row-selectors');
-    	let colSelectorsContainer = document.querySelector('.column-selectors');
-    	const gridContainer = document.querySelector('.farm-grid-container');
-    	
-    	// If containers don't exist or we're rebuilding them
-    	if (!rowSelectorsContainer || !colSelectorsContainer) {
-    		// Create new containers if they don't exist
-    		if (!rowSelectorsContainer) {
-    			rowSelectorsContainer = document.createElement('div');
-    			rowSelectorsContainer.className = 'row-selectors';
-    		}
-    		
-    		if (!colSelectorsContainer) {
-    			colSelectorsContainer = document.createElement('div');
-    			colSelectorsContainer.className = 'column-selectors';
-    		}
-    		
-    		// Make sure they're appended to the grid container
-    		if (gridContainer) {
-    			if (!rowSelectorsContainer.parentNode) gridContainer.appendChild(rowSelectorsContainer);
-    			if (!colSelectorsContainer.parentNode) gridContainer.appendChild(colSelectorsContainer);
-    		} else {
-    			console.error("Grid container not found for selector containers");
-    			return;
-    		}
-    	}
-    	
-    	// Clear existing buttons
-    	rowSelectorsContainer.innerHTML = '';
-    	colSelectorsContainer.innerHTML = '';
-    	
-    	// Set container styles for absolute positioning
-    	rowSelectorsContainer.style.position = 'absolute';
-    	rowSelectorsContainer.style.overflow = 'visible';
-    	rowSelectorsContainer.style.zIndex = '100';
-    	
-    	colSelectorsContainer.style.position = 'absolute';
-    	colSelectorsContainer.style.overflow = 'visible';
-    	colSelectorsContainer.style.zIndex = '100';
-    	
-    	// Verify grid size
-    	if (!this.game.gridSize || this.game.gridSize <= 0) {
-    		console.error("Cannot setup selector buttons, invalid gridSize:", this.game.gridSize);
-    		return;
-    	}
-    	
-    	console.log(`Creating selector buttons for grid size: ${this.game.gridSize}`);
-    	
-    	// Create row and column selector buttons
-    	for (let i = 0; i < this.game.gridSize; i++) {
-    		// Row Button (numbers 1-10)
-    		const rowBtn = document.createElement('button');
-    		rowBtn.className = 'selector-btn row-selector';
-    		rowBtn.textContent = (i + 1).toString();
-    		rowBtn.dataset.row = i;
-    		rowBtn.title = `Select Row ${i + 1}`;
-    		rowBtn.addEventListener('click', (e) => { 
-    			e.stopPropagation(); 
-    			this.selectRow(i); 
-    		});
-    		rowSelectorsContainer.appendChild(rowBtn);
-    		
-    		// Column Button (letters A-J)
-    		const colBtn = document.createElement('button');
-    		colBtn.className = 'selector-btn col-selector';
-    		colBtn.textContent = String.fromCharCode(65 + i); // A, B, C, etc.
-    		colBtn.dataset.col = i;
-    		colBtn.title = `Select Column ${String.fromCharCode(65 + i)}`;
-    		colBtn.addEventListener('click', (e) => { 
-    			e.stopPropagation(); 
-    			this.selectColumn(i); 
-    		});
-    		colSelectorsContainer.appendChild(colBtn);
-    	}
-    	
-    	// Select All Button (✓)
-    	const selectAllBtn = document.createElement('button');
-    	selectAllBtn.className = 'selector-btn select-all';
-    	selectAllBtn.textContent = '✓';
-    	selectAllBtn.title = 'Select All Plots';
-    	selectAllBtn.addEventListener('click', (e) => { 
-    		e.stopPropagation(); 
-    		this.selectAll(); 
-    	});
-    	colSelectorsContainer.appendChild(selectAllBtn);
-    	
-    	console.log("Selector buttons created, adding bulk action panel...");
-    	
-    	// Create bulk panel
-    	this.createBulkActionPanel();
-    	
-    	// Position the selectors
-    	console.log("Forcing initial selector positioning...");
-    	this._updateSelectorPositions(0, 0); // Initial positioning will be fixed on render
+        console.log("Setting up row and column selectors...");
+        
+        // Find or create containers
+        let rowSelectorsContainer = document.querySelector('.row-selectors');
+        let colSelectorsContainer = document.querySelector('.column-selectors');
+        const gridContainer = document.querySelector('.farm-grid-container');
+        
+        if (!gridContainer) {
+            console.error("Grid container not found!");
+            return;
+        }
+        
+        // Create containers if they don't exist
+        if (!rowSelectorsContainer) {
+            rowSelectorsContainer = document.createElement('div');
+            rowSelectorsContainer.className = 'row-selectors';
+            gridContainer.appendChild(rowSelectorsContainer);
+        }
+        
+        if (!colSelectorsContainer) {
+            colSelectorsContainer = document.createElement('div');
+            colSelectorsContainer.className = 'column-selectors';
+            gridContainer.appendChild(colSelectorsContainer);
+        }
+        
+        // Clear existing buttons
+        rowSelectorsContainer.innerHTML = '';
+        colSelectorsContainer.innerHTML = '';
+        
+        // Verify grid size
+        if (!this.game.gridSize || this.game.gridSize <= 0) {
+            console.error("Invalid grid size:", this.game.gridSize);
+            return;
+        }
+        
+        // Create row selector buttons (1-10)
+        for (let i = 0; i < this.game.gridSize; i++) {
+            const rowBtn = document.createElement('button');
+            rowBtn.className = 'selector-btn row-selector';
+            rowBtn.textContent = (i + 1).toString();
+            rowBtn.dataset.row = i;
+            rowBtn.title = `Select Row ${i + 1}`;
+            rowBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectRow(i);
+            });
+            rowSelectorsContainer.appendChild(rowBtn);
+        }
+        
+        // Create column selector buttons (A-J)
+        for (let i = 0; i < this.game.gridSize; i++) {
+            const colBtn = document.createElement('button');
+            colBtn.className = 'selector-btn col-selector';
+            colBtn.textContent = String.fromCharCode(65 + i);
+            colBtn.dataset.col = i;
+            colBtn.title = `Select Column ${String.fromCharCode(65 + i)}`;
+            colBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectColumn(i);
+            });
+            colSelectorsContainer.appendChild(colBtn);
+        }
+        
+        // Add Select All button
+        const selectAllBtn = document.createElement('button');
+        selectAllBtn.className = 'selector-btn select-all';
+        selectAllBtn.textContent = '✓';
+        selectAllBtn.title = 'Select All Plots';
+        selectAllBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.selectAll();
+        });
+        colSelectorsContainer.appendChild(selectAllBtn);
+        
+        console.log("Selector buttons created");
+        
+        // Create bulk panel
+        this.createBulkActionPanel();
     }
-
+    
     createBulkActionPanel() {
         const gridContainer = document.querySelector('.farm-grid-container'); if (!gridContainer || document.getElementById('bulk-action-panel')) return;
         const bulkPanel = document.createElement('div'); bulkPanel.className = 'bulk-action-panel'; bulkPanel.id = 'bulk-action-panel';
@@ -520,100 +499,38 @@ export class UIManager {
 
     // Inside ui.js -> UIManager class
     _updateSelectorPositions(offsetX, offsetY) {
-    	// Find the selector containers
-    	const rowSelectors = document.querySelector('.row-selectors');
-    	const colSelectors = document.querySelector('.column-selectors');
-    	
-    	// Make sure we have what we need
-    	if (!rowSelectors || !colSelectors || !this.game || this.cellSize <= 0 || this.game.gridSize <= 0) {
-    		console.warn(`Skipping selector position update. Missing elements or invalid parameters.`);
-    		return;
-    	}
-    	
-    	// Calculate grid dimensions
-    	const gridWidth = this.cellSize * this.game.gridSize;
-    	const gridHeight = this.cellSize * this.game.gridSize;
-    	const buttonSize = 20; // Size of selector buttons
-    	const margin = 5; // Margin between buttons and grid
-    	
-    	// Position the containers
-    	rowSelectors.style.left = `${offsetX - buttonSize - margin}px`;
-    	rowSelectors.style.top = `${offsetY}px`;
-    	rowSelectors.style.width = `${buttonSize}px`;
-    	rowSelectors.style.height = `${gridHeight}px`;
-    	
-    	colSelectors.style.left = `${offsetX}px`;
-    	colSelectors.style.top = `${offsetY - buttonSize - margin}px`;
-    	colSelectors.style.width = `${gridWidth + buttonSize + margin}px`; // Make room for select-all
-    	colSelectors.style.height = `${buttonSize}px`;
-    	
-    	// Position row buttons (numbers 1-10)
-    	const rowButtons = rowSelectors.querySelectorAll('.row-selector');
-    	rowButtons.forEach((btn, index) => {
-    		btn.style.position = 'absolute';
-    		btn.style.width = `${buttonSize}px`;
-    		btn.style.height = `${buttonSize}px`;
-    		btn.style.left = '0px';
-    		btn.style.top = `${(index * this.cellSize) + (this.cellSize/2) - (buttonSize/2)}px`;
-    		btn.style.display = 'flex';
-    		btn.style.alignItems = 'center';
-    		btn.style.justifyContent = 'center';
-    		btn.style.margin = '0';
-    		btn.style.padding = '0';
-    		btn.style.zIndex = '101';
-    		btn.style.fontSize = '10px';
-    		
-    		// Highlight row 1 and row 10 for debugging
-    		if (index === 0 || index === 9) {
-    			console.log(`Row ${index+1} button at top: ${btn.style.top}`);
-    		}
-    	});
-    	
-    	// Position column buttons (letters A-J)
-    	const colButtons = colSelectors.querySelectorAll('.col-selector');
-    	colButtons.forEach((btn, index) => {
-    		btn.style.position = 'absolute';
-    		btn.style.width = `${buttonSize}px`;
-    		btn.style.height = `${buttonSize}px`;
-    		btn.style.top = '0px';
-    		btn.style.left = `${(index * this.cellSize) + (this.cellSize/2) - (buttonSize/2)}px`;
-    		btn.style.display = 'flex';
-    		btn.style.alignItems = 'center';
-    		btn.style.justifyContent = 'center';
-    		btn.style.margin = '0';
-    		btn.style.padding = '0';
-    		btn.style.zIndex = '101';
-    		btn.style.fontSize = '10px';
-    		
-    		// Highlight column A and column J for debugging
-    		if (index === 0 || index === 9) {
-    			console.log(`Column ${String.fromCharCode(65 + index)} button at left: ${btn.style.left}`);
-    		}
-    	});
-    	
-    	// Position the select all button
-    	const selectAllBtn = colSelectors.querySelector('.select-all');
-    	if (selectAllBtn) {
-    		selectAllBtn.style.position = 'absolute';
-    		selectAllBtn.style.width = `${buttonSize}px`;
-    		selectAllBtn.style.height = `${buttonSize}px`;
-    		selectAllBtn.style.top = '0px';
-    		selectAllBtn.style.left = `${gridWidth + margin}px`;
-    		selectAllBtn.style.display = 'flex';
-    		selectAllBtn.style.alignItems = 'center';
-    		selectAllBtn.style.justifyContent = 'center';
-    		selectAllBtn.style.margin = '0';
-    		selectAllBtn.style.padding = '0';
-    		selectAllBtn.style.zIndex = '101';
-    		selectAllBtn.style.fontSize = '10px';
-    		
-    		console.log(`Select-All button positioned at: ${selectAllBtn.style.left}`);
-    	} else {
-    		console.warn("Select-All button not found in selectors.");
-    	}
-    	
-    	console.log(`Updated selector positions. Grid: ${gridWidth.toFixed(1)}x${gridHeight.toFixed(1)}, Offset: (${offsetX.toFixed(1)},${offsetY.toFixed(1)})`);
+        const rowSelectors = document.querySelector('.row-selectors');
+        const colSelectors = document.querySelector('.column-selectors');
+        
+        if (!rowSelectors || !colSelectors || !this.game || this.cellSize <= 0 || this.game.gridSize <= 0) {
+            console.warn('Skipping selector position update. Missing elements or invalid parameters.');
+            return;
+        }
+        
+        // Calculate grid dimensions
+        const gridWidth = this.cellSize * this.game.gridSize;
+        const gridHeight = this.cellSize * this.game.gridSize;
+        const buttonSize = 24; // Size of selector buttons
+        const margin = 8; // Margin between buttons and grid
+        
+        // Position row selector container
+        rowSelectors.style.left = `${offsetX - buttonSize - margin}px`;
+        rowSelectors.style.top = `${offsetY}px`;
+        rowSelectors.style.height = `${gridHeight}px`;
+        rowSelectors.style.width = 'auto';
+        
+        // Position column selector container
+        colSelectors.style.left = `${offsetX}px`;
+        colSelectors.style.top = `${offsetY - buttonSize - margin}px`;
+        colSelectors.style.width = `${gridWidth}px`;
+        colSelectors.style.height = 'auto';
+        
+        // The flexbox layout will handle individual button spacing
+        // No need to position individual buttons
+        
+        console.log(`Selectors positioned. Grid: ${gridWidth}x${gridHeight}, Offset: (${offsetX},${offsetY})`);
     }
+
     
     // --- SELECTION & BULK ACTION METHODS ---
     selectCell(row, col) { if (this.selectionMode !== 'single') { this.clearSelection(); this.selectionMode = 'single'; } this.selectedCell = { row, col }; this.showCellInfo(row, col); this.closeBulkActionPanel(); this.render(); }
@@ -628,141 +545,6 @@ export class UIManager {
     updateBulkActionPanel() { const countSpan = document.getElementById('selected-count'); if (countSpan) countSpan.textContent = this.selectedCells.length; if (this.selectedCells.length > 0) { this.showBulkActionPanel(); } else { this.closeBulkActionPanel(); } }
     showBulkPlantOptions() { const options = document.getElementById('bulk-plant-options'); const cropOptionsDiv = document.getElementById('bulk-crop-options'); if (!options || !cropOptionsDiv) return; options.style.display = 'block'; cropOptionsDiv.innerHTML = ''; crops.forEach(crop => { if (crop.id !== 'empty') { const costToPlant = formatCurrency(Math.round(crop.basePrice * this.game.plantingCostFactor)); cropOptionsDiv.innerHTML += `<div class="crop-option"><input type="radio" id="bulk-crop-${crop.id}" name="bulk-crop-select" value="${crop.id}"><label for="bulk-crop-${crop.id}">${crop.name} (${costToPlant})</label></div>`; } }); }
 
-    fixSelectorVisibility() {
-    	console.log("Applying enhanced visibility fix to all selectors...");
-    	
-    	// Find selector containers
-    	const rowSelectors = document.querySelector('.row-selectors');
-    	const colSelectors = document.querySelector('.column-selectors');
-    	
-    	if (!rowSelectors || !colSelectors) {
-    		console.error("Cannot find selector containers for visibility fix");
-    		return;
-    	}
-    	
-    	// Ensure parent container has proper positioning
-    	const gridContainer = document.querySelector('.farm-grid-container');
-    	if (gridContainer) {
-    		gridContainer.style.position = 'relative';
-    		gridContainer.style.overflow = 'visible';
-    		
-    		// Ensure these are attached to grid container directly
-    		if (rowSelectors.parentNode !== gridContainer) {
-    			gridContainer.appendChild(rowSelectors);
-    		}
-    		if (colSelectors.parentNode !== gridContainer) {
-    			gridContainer.appendChild(colSelectors);
-    		}
-    	}
-    	
-    	// Position the containers absolutely relative to grid container
-    	rowSelectors.style.position = 'absolute';
-    	rowSelectors.style.left = '-30px'; // Position further left
-    	rowSelectors.style.top = '0';
-    	rowSelectors.style.height = '100%';
-    	rowSelectors.style.overflow = 'visible';
-    	rowSelectors.style.zIndex = '9999';
-    	
-    	colSelectors.style.position = 'absolute';
-    	colSelectors.style.left = '0';
-    	colSelectors.style.top = '-30px'; // Position further up
-    	colSelectors.style.width = '100%';
-    	colSelectors.style.overflow = 'visible';
-    	colSelectors.style.zIndex = '9999';
-    	
-    	// Get all row and column buttons
-    	const rowButtons = rowSelectors.querySelectorAll('.selector-btn');
-    	const colButtons = colSelectors.querySelectorAll('.selector-btn:not(.select-all)');
-    	const selectAllBtn = colSelectors.querySelector('.select-all');
-    	
-    	// Adjust row button styles for maximum visibility
-    	rowButtons.forEach((btn, index) => {
-    		// Apply high-visibility styles
-    		btn.style.position = 'absolute';
-    		btn.style.left = '0';
-    		btn.style.top = `${(index * 80) + 40 - 12}px`; // Approximate positioning
-    		btn.style.width = '24px';
-    		btn.style.height = '24px';
-    		btn.style.backgroundColor = '#FF5722'; // Bright orange
-    		btn.style.color = 'white';
-    		btn.style.fontWeight = 'bold';
-    		btn.style.borderRadius = '50%';
-    		btn.style.border = '2px solid white';
-    		btn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.5)';
-    		btn.style.zIndex = '10000';
-    		btn.style.display = 'flex';
-    		btn.style.alignItems = 'center';
-    		btn.style.justifyContent = 'center';
-    		btn.style.fontSize = '12px';
-    		btn.style.transform = 'scale(1.2)'; // Make buttons slightly larger
-    		
-    		console.log(`Enhanced row button ${index+1} positioned at top: ${btn.style.top}`);
-    	});
-    	
-    	// Adjust column button styles for maximum visibility
-    	colButtons.forEach((btn, index) => {
-    		// Apply high-visibility styles
-    		btn.style.position = 'absolute';
-    		btn.style.left = `${(index * 80) + 40 - 12}px`; // Approximate positioning
-    		btn.style.top = '0';
-    		btn.style.width = '24px';
-    		btn.style.height = '24px';
-    		btn.style.backgroundColor = '#FF5722'; // Bright orange
-    		btn.style.color = 'white';
-    		btn.style.fontWeight = 'bold';
-    		btn.style.borderRadius = '50%';
-    		btn.style.border = '2px solid white';
-    		btn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.5)';
-    		btn.style.zIndex = '10000';
-    		btn.style.display = 'flex';
-    		btn.style.alignItems = 'center';
-    		btn.style.justifyContent = 'center';
-    		btn.style.fontSize = '12px';
-    		btn.style.transform = 'scale(1.2)'; // Make buttons slightly larger
-    		
-    		console.log(`Enhanced column button ${String.fromCharCode(65 + index)} positioned at left: ${btn.style.left}`);
-    	});
-    	
-    	// Adjust select-all button for maximum visibility
-    	if (selectAllBtn) {
-    		selectAllBtn.style.position = 'absolute';
-    		selectAllBtn.style.left = '100%';
-    		selectAllBtn.style.top = '0';
-    		selectAllBtn.style.width = '24px';
-    		selectAllBtn.style.height = '24px';
-    		selectAllBtn.style.backgroundColor = '#4CAF50'; // Different color to distinguish
-    		selectAllBtn.style.color = 'white';
-    		selectAllBtn.style.fontWeight = 'bold';
-    		selectAllBtn.style.borderRadius = '50%';
-    		selectAllBtn.style.border = '2px solid white';
-    		selectAllBtn.style.boxShadow = '0 2px 5px rgba(0,0,0,0.5)';
-    		selectAllBtn.style.zIndex = '10000';
-    		selectAllBtn.style.display = 'flex';
-    		selectAllBtn.style.alignItems = 'center';
-    		selectAllBtn.style.justifyContent = 'center';
-    		selectAllBtn.style.fontSize = '12px';
-    		selectAllBtn.style.marginLeft = '10px';
-    		selectAllBtn.style.transform = 'scale(1.2)'; // Make button slightly larger
-    		
-    		console.log(`Enhanced select-all button positioned`);
-    	}
-    	
-    	// Add CSS to ensure grid container always shows overflow
-    	const style = document.createElement('style');
-    	style.textContent = `
-    		.farm-grid-container { overflow: visible !important; }
-    		.grid-and-selectors-wrapper { overflow: visible !important; }
-    	`;
-    	document.head.appendChild(style);
-    	
-    	console.log("Enhanced visibility fix applied to all selector buttons");
-    	
-    	// Add a forced refresh after a short delay to ensure everything is visible
-    	setTimeout(() => {
-    		this.render();
-    		console.log("Forced render after visibility fix");
-    	}, 500);
-    }
     
     // Add this call at the end of your UIManager constructor
     // this.fixSelectorVisibility();
