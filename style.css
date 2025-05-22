@@ -62,40 +62,54 @@ h1 {
     display: flex;
     justify-content: center;
     align-items: center;
-    overflow: hidden;
-    min-height: 0; /* Allow shrinking */
+    overflow: visible; /* Changed from hidden to visible */
+    min-height: 0;
+    padding: 40px; /* Add padding to make room for selectors */
 }
 
 .grid-and-selectors-wrapper {
-    display: grid;
-    grid-template-columns: auto 1fr auto; /* Col1(rows), Col2(canvas), Col3(empty/future) */
-    grid-template-rows: auto 1fr;       /* Row1(cols), Row2(canvas/rows) */
-    gap: 5px;
-    width: 100%; /* Fill container */
-    height: 100%; /* Fill container */
-    padding: 30px; /* Space around grid/selectors */
-    box-sizing: border-box;
-    align-items: stretch; /* Stretch vertically */
-    justify-items: stretch; /* Stretch horizontally */
+    display: block; /* Changed from grid to block */
+    position: relative;
+    width: 100%;
+    height: 100%;
 }
 
 #farm-grid {
-    grid-column: 2 / 3;
-    grid-row: 2 / 3;
     width: 100%;
     height: 100%;
     object-fit: contain;
     background-color: var(--card-bg);
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    border: 1px solid var(--border-color); /* Add border for visual clarity */
+    border: 1px solid var(--border-color);
+    display: block; /* Ensure it's block level */
 }
 
 /* Make sure our selectors aren't constrained by CSS */
-.row-selectors, .column-selectors {
-    overflow: visible !important;
+.row-selectors {
     position: absolute !important;
-    z-index: 100 !important; /* Make sure selectors stay on top */
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    z-index: 100 !important;
+    /* These will be set by JavaScript:
+    left: calculated
+    top: calculated
+    height: grid height
+    */
+}
+
+.column-selectors {
+    position: absolute !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    z-index: 100 !important;
+    /* These will be set by JavaScript:
+    left: calculated
+    top: calculated
+    width: grid width
+    */
 }
 
 /* Ensure the grid container has proper positioning context */
@@ -106,34 +120,45 @@ h1 {
 
 /* Make sure all selectors are clearly visible */
 .selector-btn {
+    position: relative !important; /* Changed from absolute */
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    position: absolute !important;
-    z-index: 100 !important;
-    width: 20px !important;
-    height: 20px !important;
+    width: 24px !important;
+    height: 24px !important;
     margin: 0 !important;
     padding: 0 !important;
-    font-size: 10px !important;
-    background: rgba(42, 157, 143, 0.9) !important; /* Make slightly more opaque */
+    font-size: 11px !important;
+    background: rgba(42, 157, 143, 0.9) !important;
     color: white !important;
     font-weight: bold !important;
-    border-radius: 3px !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important; /* Add shadow for better visibility */
+    border-radius: 4px !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
 }
 
 /* Style for selected buttons */
 .selector-btn.active {
-    background-color: var(--danger-color) !important;
-    transform: scale(1.1) !important; /* Slightly enlarge for better visibility */
+    background: var(--danger-color) !important;
+    transform: scale(1.1) !important;
 }
 
 /* Hover effect */
 .selector-btn:hover {
-    background-color: rgba(42, 157, 143, 1) !important;
-    transform: scale(1.1) !important;
-    cursor: pointer !important;
+    background: rgba(42, 157, 143, 1) !important;
+    transform: scale(1.15) !important;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3) !important;
+}
+
+.selector-btn.select-all {
+    background: rgba(76, 175, 80, 0.9) !important;
+    margin-left: 8px !important;
+}
+
+.selector-btn.select-all:hover {
+    background: rgba(76, 175, 80, 1) !important;
 }
 
 /* Reset flexbox layouts that might be interfering */
