@@ -203,7 +203,7 @@ export class CaliforniaClimateFarmer {
     }
 
     runTick() {
-        this.balance -= this.dailyOverhead;
+        this.balance -= this.dailyOverheadCost;
         if (this.balance < -5000 && !this.testMode) {
              this.addEvent("Warning: Farm operating at a significant loss!", true);
         }
