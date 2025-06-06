@@ -297,9 +297,12 @@ export class UIManager {
         colSelectorsContainer.appendChild(selectAllBtn);
         
         console.log("Selector buttons created");
-        
+
         // Create bulk panel
         this.createBulkActionPanel();
+
+        // Ensure initial positioning
+        setTimeout(() => this.render(), 50);
     }
     
     createBulkActionPanel() {
@@ -501,34 +504,34 @@ export class UIManager {
     _updateSelectorPositions(offsetX, offsetY) {
         const rowSelectors = document.querySelector('.row-selectors');
         const colSelectors = document.querySelector('.column-selectors');
-        
+
         if (!rowSelectors || !colSelectors || !this.game || this.cellSize <= 0 || this.game.gridSize <= 0) {
-            console.warn('Skipping selector position update. Missing elements or invalid parameters.');
-            return;
+            return; // Elements not ready
         }
-        
-        // Calculate grid dimensions
+
         const gridWidth = this.cellSize * this.game.gridSize;
         const gridHeight = this.cellSize * this.game.gridSize;
-        const buttonSize = 24; // Size of selector buttons
-        const margin = 8; // Margin between buttons and grid
-        
-        // Position row selector container
-        rowSelectors.style.left = `${offsetX - buttonSize - margin}px`;
-        rowSelectors.style.top = `${offsetY}px`;
-        rowSelectors.style.height = `${gridHeight}px`;
-        rowSelectors.style.width = 'auto';
-        
-        // Position column selector container
-        colSelectors.style.left = `${offsetX}px`;
-        colSelectors.style.top = `${offsetY - buttonSize - margin}px`;
-        colSelectors.style.width = `${gridWidth}px`;
-        colSelectors.style.height = 'auto';
-        
-        // The flexbox layout will handle individual button spacing
-        // No need to position individual buttons
-        
-        console.log(`Selectors positioned. Grid: ${gridWidth}x${gridHeight}, Offset: (${offsetX},${offsetY})`);
+        const buttonSize = 24;
+        const margin = 8;
+
+        const newRowLeft = `${offsetX - buttonSize - margin}px`;
+        const newRowTop = `${offsetY}px`;
+        const newColLeft = `${offsetX}px`;
+        const newColTop = `${offsetY - buttonSize - margin}px`;
+
+        if (rowSelectors.style.left !== newRowLeft || rowSelectors.style.top !== newRowTop) {
+            rowSelectors.style.left = newRowLeft;
+            rowSelectors.style.top = newRowTop;
+            rowSelectors.style.height = `${gridHeight}px`;
+            rowSelectors.style.width = `${buttonSize}px`;
+        }
+
+        if (colSelectors.style.left !== newColLeft || colSelectors.style.top !== newColTop) {
+            colSelectors.style.left = newColLeft;
+            colSelectors.style.top = newColTop;
+            colSelectors.style.width = `${gridWidth}px`;
+            colSelectors.style.height = `${buttonSize}px`;
+        }
     }
 
     
