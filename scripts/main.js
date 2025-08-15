@@ -1,59 +1,60 @@
 // scripts/main.js
-import { CaliforniaClimateFarmer } from './game.js';
-import { UIManager } from './ui.js'; // Keep this if ui.js needs specific setup later, otherwise might be handled by game.js
+// Bootstraps the UI and runs the animation loop.
 
-console.log("Loading main.js for UI game..."); // Changed log slightly
+import { UIManager } from "./ui.js";
 
-document.addEventListener('DOMContentLoaded', () => {
-    console.log("DOM ready - Initializing UI game controls..."); // Changed log slightly
+(function bootstrap() {
+  // Guard both ways: script is after DOM, but also listen for DOMContentLoaded.
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", start, { once: true });
+  } else {
+    start();
+  }
+})();
 
-    const regularGameBtn = document.getElementById('regular-game-btn');
-    const splashScreen = document.getElementById('splash-screen');
+function start() {
+  const errorEl = document.getElementById("error");
+  try {
+    const canvas = document.getElementById("farmCanvas");
+    if (!canvas) throw new Error("UI Initialization Failed\nFarm grid canvas not found!");
 
-    if (!regularGameBtn) {
-        console.error("Start Regular Game button not found! Cannot start game.");
-        return;
+    // Initialize UI
+    const ui = new UIManager(canvas, { rows: 20, cols: 20 });
+
+    // Wire overlay controls
+    for (const input of document.querySelectorAll('input[name="overlay"]')) {
+      input.addEventListener("change", () => ui.setOverlay(input.value));
     }
-    if (!splashScreen) {
-        console.warn("Splash screen not found! Game might start immediately if button exists.");
-    } else {
-        console.log("Splash screen found.");
+
+    // Simple RAF loop with FPS readout
+    const fpsEl = document.getElementById("fps");
+    let last = performance.now();
+    let frames = 0, acc = 0;
+
+    function frame(now) {
+      const dt = now - last;
+      last = now;
+
+      ui.render();
+
+      // FPS meter (updated ~2x/sec)
+      frames++; acc += dt;
+      if (acc >= 500) {
+        const fps = Math.round((frames / acc) * 1000);
+        if (fpsEl) fpsEl.textContent = `${fps} fps`;
+        frames = 0; acc = 0;
+      }
+
+      window.requestAnimationFrame(frame);
     }
 
-    // Listener that ACTUALLY starts the game
-    regularGameBtn.addEventListener('click', () => {
-        console.log("Main.js: Regular game start triggered from button click."); // Clarified log source
-
-        // Ensure splash screen is hidden
-        if (splashScreen) {
-            splashScreen.style.display = 'none';
-        } else {
-            console.warn("Splash screen was not found to hide.");
-        }
-
-        // --- Initialize and start the game ---
-        try {
-             console.log("Main.js: Creating game instance for UI..."); // Added log
-            // Ensure the game instance is not created multiple times if button is somehow clicked twice
-            if (window.currentGameInstance) {
-                console.warn("Game instance already exists. Ignoring second start request.");
-                return;
-            }
-
-            const game = new CaliforniaClimateFarmer({
-                headless: false,
-                testMode: false,
-                autoTerminate: false
-            });
-             console.log("Main.js: Game instance created, starting UI game loop..."); // Added log
-             window.currentGameInstance = game; // Optional: Store globally to prevent duplicates
-            game.start(); // Start the game loop
-            console.log("Main.js: UI Game started successfully."); // Changed log slightly
-        } catch (error) {
-            console.error("Main.js: Failed to initialize or start the game:", error);
-            document.body.innerHTML = `<div style="color: red; padding: 20px;"><h1>Error Starting Game</h1><p>${error.message}</p><pre>${error.stack}</pre></div>`;
-        }
-    });
-
-    console.log("Main.js: Listener for game start attached.");
-});
+    window.requestAnimationFrame(frame);
+  } catch (err) {
+    // Show a friendly error in the UI and rethrow to console.
+    if (errorEl) {
+      errorEl.style.display = "block";
+      errorEl.textContent = (err && err.message) ? err.message : String(err);
+    }
+    console.error(err);
+  }
+}
