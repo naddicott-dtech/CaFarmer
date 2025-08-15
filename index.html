@@ -1,352 +1,48 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>California Climate Farmer</title>
-    <link rel="stylesheet" href="style.css"> <!-- Link to CSS file -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CaFarmer</title>
+  <style>
+    :root { color-scheme: light dark; }
+    html, body { height: 100%; margin: 0; }
+    body { display: grid; place-items: center; font-family: system-ui, sans-serif; }
+    #app { width: min(92vw, 960px); }
+    #hud { display: flex; gap: .75rem; align-items: center; margin: .5rem 0 1rem; }
+    #farmCanvas {
+      display: block;
+      width: 100%;
+      height: min(70vh, 720px);    /* CSS size; JS will set pixel buffer size */
+      border: 1px solid rgba(127,127,127,.4);
+      border-radius: 12px;
+      background: canvas;
+    }
+    #error {
+      color: #b00020;
+      font-weight: 600;
+      display: none;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>California Climate Farmer <span class="badge">Year <span id="year-display">1</span></span> <span class="badge">Season: <span id="season-display">Spring</span></span></h1>
-            <div class="btn-group">
-                <button id="pause-btn" class="btn">Pause</button>
-                <!-- Dashboard button will be added here by JS -->
-                <button id="help-btn" class="btn secondary">Help</button>
-            </div>
-        </header>
-
-        <div class="main-content">
-            <div class="farm-grid-container">
-
-                <!-- Wrapper for Grid Layout -->
-                <div class="grid-and-selectors-wrapper">
-                    <!-- Row Selectors Placeholder (Buttons added by JS) -->
-                    <div class="row-selectors"></div>
-                    <!-- Column Selectors Placeholder (Buttons added by JS) -->
-                    <div class="column-selectors"></div>
-                    <!-- Canvas -->
-                    <canvas id="farm-grid"></canvas>
-                </div>
-                <!-- End Wrapper -->
-
-                <!-- Other UI Elements Relative to the Container -->
-                <div class="overlay-controls">
-                    <select id="overlay-select">
-                        <option value="crop">Crop Type</option>
-                        <option value="water">Water Status</option>
-                        <option value="soil">Soil Health</option>
-                        <option value="yield">Expected Yield</option>
-                    </select>
-                </div>
-                <div class="grid-legend" id="grid-legend"></div>
-                <div id="tooltip" class="tooltip"></div>
-                <div id="cell-info" class="cell-info-panel">
-                    <h2>Plot Information</h2>
-                    <div id="cell-details"></div>
-                    <div class="crop-selection">
-                        <h3>Plant Crop</h3>
-                        <div id="crop-options"></div>
-                    </div>
-                    <div class="cell-actions">
-                        <button id="irrigate-btn" class="btn">Irrigate</button>
-                        <button id="fertilize-btn" class="btn">Fertilize</button>
-                        <button id="harvest-btn" class="btn">Harvest</button>
-                        <button id="close-cell-info" class="btn secondary">Close</button>
-                    </div>
-                </div>
-                <!-- Bulk Panel and Hotkey Info are siblings of the wrapper -->
-                 <div id="bulk-action-panel" class="bulk-action-panel"></div>
-                 <div class="hotkey-info"></div>
-
-            </div>
-
-            <div class="sidebar">
-                <!-- Dashboard will be inserted here by JS if needed -->
-                <div class="hud-panel">
-                    <h2>Farm Status</h2>
-                    <div class="stat"><span>Bank Balance:</span><span class="stat-value">$<span id="balance">100000</span></span></div>
-                    <div class="stat"><span>Farm Value:</span><span class="stat-value">$<span id="farm-value">250000</span></span></div>
-                    <div class="stat"><span>Farm Health:</span><span class="stat-value"><span id="farm-health">85</span>%</span></div>
-                    <div class="stat"><span>Water Reserve:</span><span class="stat-value"><span id="water-reserve">75</span>%</span></div>
-                    <div class="stat"><span>Date:</span><span class="stat-value" id="date-display">Spring, Year 1</span></div>
-                    <div class="speed-control"><span>Speed:</span><input type="range" id="speed-slider" min="1" max="10" value="5"><span id="speed-value">5x</span></div>
-                </div>
-
-                <div class="control-panel">
-                    <h2>Actions</h2>
-                    <p>Click grid or use selectors/hotkeys. Hotkeys: (I)rrigate, (F)ertilize, (H)arvest, (M)ode, (R)epeat, (D)ashboard, (Esc)Clear.</p>
-                    <div class="btn-group">
-                        <button id="market-btn" class="btn">Market</button>
-                        <button id="research-btn" class="btn secondary">Research</button>
-                    </div>
-                </div>
-
-                <div class="events-panel">
-                    <h2>Events & Notifications</h2>
-                    <div id="events-container">
-                        <div class="event"><div class="event-date">Loading...</div><div>Game initializing...</div></div>
-                    </div>
-                </div>
-
-                <div class="tech-panel">
-                    <h2>Researched Tech</h2>
-                    <div id="tech-container"><p>None</p></div>
-                </div>
-
-                <div class="advisor-placeholder">
-                    <h3>Farm Advisor</h3>
-                    <p>Welcome! Click 'Start Regular Game' to begin.</p>
-                </div>
-            </div>
-        </div>
-    </div> <!-- End .container -->
-
-    <!-- Modals remain outside the main layout -->
-    <div id="help-modal" class="modal">
-        <div class="modal-content">
-            <span class="close">×</span>
-            <h2>California Climate Farmer - Help</h2>
-            <p>Manage your farm against climate change challenges.</p>
-            <h3>Getting Started</h3>
-            <ul><li>Click plot or use selectors/hotkeys.</li><li>Monitor resources & events.</li><li>Research tech to adapt.</li></ul>
-            <h3>Controls</h3>
-            <ul><li>Use speed slider.</li><li>Pause button.</li><li>Overlays change view.</li><li>Hotkeys listed on grid.</li></ul>
-            <h3>Climate Events</h3>
-            <p>Prepare for droughts, heatwaves, etc. Tech helps mitigate.</p>
-        </div>
+  <main id="app">
+    <h1>CaFarmer</h1>
+    <div id="hud">
+      <span>Grid Overlay:</span>
+      <label><input type="radio" name="overlay" value="none" checked> None</label>
+      <label><input type="radio" name="overlay" value="soil"> Soil</label>
+      <label><input type="radio" name="overlay" value="water"> Water</label>
+      <label><input type="radio" name="overlay" value="yield"> Yield</label>
+      <span id="fps" style="margin-left:auto">— fps</span>
     </div>
 
-    <div id="research-modal" class="modal">
-        <div class="modal-content">
-            <span class="close">×</span>
-            <h2>Research & Technology</h2>
-            <p>Invest in technologies to improve efficiency and resilience.</p>
-            <div id="research-options"></div>
-        </div>
-    </div>
+    <!-- IMPORTANT: The canvas exists before scripts run -->
+    <canvas id="farmCanvas"></canvas>
+    <p id="error" role="alert"></p>
+  </main>
 
-    <div id="market-modal" class="modal">
-        <div class="modal-content">
-            <span class="close">×</span>
-            <h2>Market Prices & Information</h2>
-            <div id="market-info"></div>
-        </div>
-    </div>
-
-    <!-- Splash Screen -->
-   <div id="splash-screen" class="splash-container">
-        <div class="splash-content">
-            <h1 class="splash-title">California Climate Farmer</h1>
-            <p class="splash-description">Manage your farm and adapt to climate challenges.</p>
-            <div class="splash-options">
-                <button id="regular-game-btn" class="btn">Start Regular Game</button>
-                <button id="tutorial-btn" class="btn secondary">Tutorial (Coming Soon)</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Debug Panel (Optional but useful) -->
-    <div id="debug-panel" class="debug-panel" style="display: none;"> <!-- Hide by default -->
-        <h3>Debug Information</h3>
-        <div id="debug-content"></div>
-    </div>
-
-    <!-- Inline Debug Logger Script -->
-    <script>
-    // Create visual error display for debugging
-    (function() {
-        // Store original console methods
-        const originalConsole = {
-            log: console.log.bind(console),
-            warn: console.warn.bind(console),
-            error: console.error.bind(console)
-        };
-        let logPanel = null; // Reference to the panel
-        let logContainer = null; // Reference to the container
-
-        // Function to create the visual log panel
-        const createLogPanel = () => {
-            // Avoid creating multiple panels
-            if (document.getElementById('debug-log-panel')) {
-                return document.getElementById('debug-log-panel');
-            }
-
-            const panel = document.createElement('div');
-            panel.id = 'debug-log-panel';
-            panel.style.position = 'fixed';
-            panel.style.bottom = '10px';
-            panel.style.right = '10px';
-            panel.style.width = '450px'; // Slightly wider
-            panel.style.maxHeight = '350px'; // Slightly taller
-            panel.style.overflowY = 'auto';
-            panel.style.backgroundColor = 'rgba(0,0,0,0.85)';
-            panel.style.color = '#00ff00'; // Default log color
-            panel.style.fontFamily = 'monospace';
-            panel.style.fontSize = '11px'; // Slightly smaller
-            panel.style.padding = '10px';
-            panel.style.borderRadius = '5px';
-            panel.style.zIndex = '9999';
-            panel.style.display = 'block'; // Show by default, user can close
-
-            // Add controls
-            const controls = document.createElement('div');
-            controls.style.marginBottom = '10px';
-            controls.style.borderBottom = '1px solid #555';
-            controls.style.paddingBottom = '5px';
-            controls.innerHTML = `
-                <span style="color: white; font-weight: bold;">DEBUG LOG</span>
-                <button id="clear-log" style="background:#555;color:white;border:none;padding:3px 8px;margin-left:10px;cursor:pointer;">Clear</button>
-                <button id="close-log" style="background:#555;color:white;border:none;padding:3px 8px;margin-left:5px;cursor:pointer;">Close</button>
-            `;
-            panel.appendChild(controls);
-
-            // Add log container
-            const container = document.createElement('div');
-            container.id = 'log-container';
-            panel.appendChild(container);
-
-            // Add to document
-            document.body.appendChild(panel);
-
-            // Add event listeners for controls
-            panel.querySelector('#clear-log').addEventListener('click', () => {
-                if (logContainer) logContainer.innerHTML = '';
-            });
-
-            panel.querySelector('#close-log').addEventListener('click', () => {
-                panel.style.display = 'none';
-            });
-
-            return panel;
-        };
-
-        // Global error handler for uncaught exceptions
-        window.onerror = function(message, source, lineno, colno, error) {
-            // Try to get a more detailed stack trace if available
-            const stack = error ? error.stack : 'No stack trace available';
-            const errorMsg = `ERROR: ${message} at ${source}:${lineno}:${colno}\nStack: ${stack}`;
-            // Use the overridden console.error to display it
-            console.error(errorMsg);
-            // Return false to allow default browser error handling (like showing in main console)
-            return false;
-        };
-
-        // Handle unhandled promise rejections
-        window.addEventListener('unhandledrejection', function(event) {
-             console.error('Unhandled Promise Rejection:', event.reason);
-        });
-
-
-        // Function to add log entries to the panel
-        function addLogEntry(type, args) {
-            // Ensure panel exists
-            if (!logPanel || !logContainer) {
-                 logPanel = createLogPanel();
-                 logContainer = logPanel.querySelector('#log-container');
-                 if (!logPanel || !logContainer) return; // Still couldn't create it
-            }
-            // Ensure panel is visible if it was closed
-            if (logPanel.style.display === 'none') {
-                 logPanel.style.display = 'block';
-            }
-
-            const entry = document.createElement('div');
-            entry.style.borderBottom = '1px solid #333';
-            entry.style.padding = '2px 0';
-            entry.style.wordWrap = 'break-word'; // Allow long lines to wrap
-
-            // Format the time
-            const time = new Date().toTimeString().split(' ')[0];
-            let color = '#00ff00'; // Green for log
-            let prefix = 'LOG';
-
-            if (type === 'warn') {
-                color = '#ffff00'; // Yellow for warn
-                prefix = 'WARN';
-            } else if (type === 'error') {
-                color = '#ff4444'; // Red for error
-                prefix = 'ERROR';
-            }
-
-            // Format the message arguments
-            const messageParts = args.map(arg => {
-                if (arg instanceof Error) {
-                    return `${arg.message}\n${arg.stack || '(No stack)'}`;
-                }
-                if (typeof arg === 'object' && arg !== null) {
-                    try {
-                        // Simple stringify for readability, avoid excessive depth
-                        return JSON.stringify(arg, (key, value) =>
-                            typeof value === 'object' && value !== null ? '[Object]' : value, 2);
-                    } catch (e) {
-                        return '[Unserializable Object]';
-                    }
-                }
-                return String(arg);
-            });
-            const message = messageParts.join(' ');
-
-            // Use textContent for safety against potential HTML injection in logs
-            const timeSpan = document.createElement('span'); timeSpan.style.color = '#999'; timeSpan.textContent = `[${time}] `;
-            const prefixSpan = document.createElement('span'); prefixSpan.style.color = color; prefixSpan.textContent = `${prefix}: `;
-            const messageSpan = document.createElement('span'); messageSpan.textContent = message;
-
-            entry.appendChild(timeSpan);
-            entry.appendChild(prefixSpan);
-            entry.appendChild(messageSpan);
-
-            logContainer.appendChild(entry);
-
-            // Auto-scroll to bottom ONLY if the user hasn't manually scrolled up
-            // A bit tricky, simple scroll always for now
-            logPanel.scrollTop = logPanel.scrollHeight;
-
-            // Limit entries to prevent performance issues
-            const maxEntries = 150; // Increased limit slightly
-            while (logContainer.children.length > maxEntries) {
-                logContainer.removeChild(logContainer.firstChild);
-            }
-        }
-
-        // Wait until DOM is loaded to ensure body exists for panel creation
-        // and to override console *after* potential early script errors
-        window.addEventListener('DOMContentLoaded', () => {
-            // Override console methods
-            console.log = function() {
-                originalConsole.log.apply(console, arguments); // Call original too
-                addLogEntry('log', Array.from(arguments));
-            };
-
-            console.warn = function() {
-                originalConsole.warn.apply(console, arguments);
-                addLogEntry('warn', Array.from(arguments));
-            };
-
-            console.error = function() {
-                // Log the arguments *before* calling original, in case original throws
-                addLogEntry('error', Array.from(arguments));
-                originalConsole.error.apply(console, arguments);
-            };
-
-            // Initial log message
-            console.log('Debug logger initialized');
-        });
-    })();
-
-    // Add module import error tracking
-    window.addEventListener('error', function(e) {
-        // Filter for module loading errors specifically if possible
-        if (e.message && (e.message.includes('import') || e.message.includes('module'))) {
-             console.error(`Module loading error in ${e.filename?.split('/').pop() || 'unknown'}: ${e.message}`);
-        }
-        // Note: General errors are caught by window.onerror above
-    }, true); // Use capture phase to catch earlier
-    </script>
-
-    <!-- Module Scripts - Order Matters -->
-    <script type="module" src="scripts/splash-screen.js"></script>
-    <script type="module" src="scripts/main.js"></script>
+  <!-- Keep the module after the canvas; also guards on DOMContentLoaded in main.js -->
+  <script type="module" src="./scripts/main.js"></script>
 </body>
 </html>
