@@ -1,5 +1,5 @@
 // scripts/ui.js
-// Responsible for sizing the canvas, drawing the grid & overlays, and handling input.
+// Canvas UI manager: sizing, drawing, simple overlays, and click highlight.
 
 export class UIManager {
   /**
@@ -18,50 +18,43 @@ export class UIManager {
     this.rows = rows;
     this.cols = cols;
     this.gridColor = "rgba(0,0,0,0.25)";
-    this.highlight = null; // {r,c} on click
+    this.highlight = null; // {r,c}
     this.overlay = "none"; // 'none' | 'soil' | 'water' | 'yield'
 
     // Derived sizing (updated in resize())
     this.cellW = 0;
     this.cellH = 0;
 
-    // Bind handlers
+    // Bind & wire
     this._onResize = this.resize.bind(this);
     this._onClick = this.handleClick.bind(this);
-
-    // Initial wiring
     window.addEventListener("resize", this._onResize, { passive: true });
     this.canvas.addEventListener("click", this._onClick);
 
-    // Initial size
-    this.resize();
+    this.resize(); // initial
   }
 
-  setOverlay(kind) {
-    this.overlay = kind || "none";
-  }
-
+  setOverlay(kind) { this.overlay = kind || "none"; }
   destroy() {
     window.removeEventListener("resize", this._onResize);
     this.canvas.removeEventListener("click", this._onClick);
   }
 
-  // Size the backing store for high-DPI, keep CSS size as-is.
+  // High-DPI backing store with CSS-sized drawing
   resize() {
-    const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
-    const cssWidth = this.canvas.clientWidth;
-    const cssHeight = this.canvas.clientHeight;
-    const targetW = Math.max(1, Math.floor(cssWidth * dpr));
-    const targetH = Math.max(1, Math.floor(cssHeight * dpr));
-
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const cssW = this.canvas.clientWidth || 1;
+    const cssH = this.canvas.clientHeight || 1;
+    const targetW = Math.max(1, Math.floor(cssW * dpr));
+    const targetH = Math.max(1, Math.floor(cssH * dpr));
     if (this.canvas.width !== targetW) this.canvas.width = targetW;
     if (this.canvas.height !== targetH) this.canvas.height = targetH;
 
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.ctx.scale(dpr, dpr); // draw in CSS pixels
+    this.ctx.scale(dpr, dpr); // draw in CSS px
 
-    this.cellW = cssWidth / this.cols;
-    this.cellH = cssHeight / this.rows;
+    this.cellW = cssW / this.cols;
+    this.cellH = cssH / this.rows;
   }
 
   handleClick(ev) {
@@ -70,13 +63,13 @@ export class UIManager {
     const y = ev.clientY - rect.top;
     const c = Math.floor(x / this.cellW);
     const r = Math.floor(y / this.cellH);
-    this.highlight = { r: Math.min(this.rows - 1, Math.max(0, r)),
-                       c: Math.min(this.cols - 1, Math.max(0, c)) };
+    this.highlight = {
+      r: Math.min(this.rows - 1, Math.max(0, r)),
+      c: Math.min(this.cols - 1, Math.max(0, c)),
+    };
   }
 
-  // Example overlay values (deterministic pseudo data so it "looks alive")
   sampleOverlayValue(r, c) {
-    // Simple hash for reproducible pattern
     const v = (r * 73856093 ^ c * 19349663) >>> 0;
     return (v % 100) / 100; // 0..1
   }
@@ -86,25 +79,20 @@ export class UIManager {
     const w = this.canvas.clientWidth;
     const h = this.canvas.clientHeight;
 
-    // Clear
+    // Clear + background
     ctx.clearRect(0, 0, w, h);
-
-    // Background
     ctx.fillStyle = "rgba(0, 120, 0, 0.10)";
     ctx.fillRect(0, 0, w, h);
 
-    // Overlay shading
+    // Overlay
     if (this.overlay !== "none") {
       for (let r = 0; r < this.rows; r++) {
         for (let c = 0; c < this.cols; c++) {
           const v = this.sampleOverlayValue(r, c);
-          let color;
-          switch (this.overlay) {
-            case "soil":  color = `rgba(121, 85, 72, ${0.15 + 0.5 * v})`; break;
-            case "water": color = `rgba(33, 150, 243, ${0.15 + 0.5 * v})`; break;
-            case "yield": color = `rgba(76, 175, 80, ${0.15 + 0.5 * v})`; break;
-            default: color = "transparent";
-          }
+          let color = "transparent";
+          if (this.overlay === "soil")  color = `rgba(121,85,72, ${0.15 + 0.5 * v})`;
+          if (this.overlay === "water") color = `rgba(33,150,243, ${0.15 + 0.5 * v})`;
+          if (this.overlay === "yield") color = `rgba(76,175,80, ${0.15 + 0.5 * v})`;
           ctx.fillStyle = color;
           ctx.fillRect(c * this.cellW, r * this.cellH, this.cellW, this.cellH);
         }
@@ -115,22 +103,20 @@ export class UIManager {
     ctx.beginPath();
     for (let r = 0; r <= this.rows; r++) {
       const y = Math.round(r * this.cellH) + 0.5;
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
+      ctx.moveTo(0, y); ctx.lineTo(w, y);
     }
     for (let c = 0; c <= this.cols; c++) {
       const x = Math.round(c * this.cellW) + 0.5;
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
+      ctx.moveTo(x, 0); ctx.lineTo(x, h);
     }
     ctx.strokeStyle = this.gridColor;
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Highlight cell (if any)
+    // Highlight
     if (this.highlight) {
       const { r, c } = this.highlight;
-      ctx.strokeStyle = "rgba(255, 165, 0, 0.9)";
+      ctx.strokeStyle = "rgba(255,165,0,0.9)";
       ctx.lineWidth = 2;
       ctx.strokeRect(
         Math.floor(c * this.cellW) + 1,
@@ -141,10 +127,8 @@ export class UIManager {
     }
   }
 
-  // Called each frame by main loop
   render() {
-    // If canvas CSS size changed (e.g., layout), recompute metrics
-    this.resize();
+    this.resize(); // stay crisp on layout changes
     this.drawGrid();
   }
 }
