@@ -1,89 +1,155 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>CaFarmer</title>
-  <style>
-    :root { color-scheme: light dark; }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-    .wrap { max-width: 960px; margin: 24px auto; padding: 0 16px; }
-    h1 { margin: 0 0 16px; }
-    .card { border: 1px solid rgba(127,127,127,.35); border-radius: 12px; padding: 16px; }
-    .row { display: flex; gap: 12px; align-items: center; }
-    .spacer { flex: 1; }
-    button {
-      cursor: pointer; border: 1px solid rgba(127,127,127,.35);
-      border-radius: 10px; padding: 10px 14px; background: canvas; font-weight: 600;
-    }
-    button:disabled { opacity: .6; cursor: not-allowed; }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>California Climate Farmer</title>
+    <link rel="stylesheet" href="style.css"> <!-- You can move the styles below into this file -->
+    <style>
+      /* Key fix for grid header alignment */
+      .farm-grid-container {
+        position: relative; /* This is essential for positioning children */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 30px; /* Give space for headers */
+        box-sizing: border-box;
+      }
 
-    /* Sections */
-    #menu { display: block; margin-bottom: 16px; }
-    #game { display: none; }
-    #tests { display: none; }
+      #farm-grid {
+        display: block;
+        max-width: 100%;
+        max-height: 100%;
+      }
 
-    /* Canvas */
-    #farmCanvas {
-      display: block; width: 100%; height: min(70vh, 720px);
-      border: 1px solid rgba(127,127,127,.35); border-radius: 12px; background: canvas;
-    }
-
-    #error { display:none; color:#b00020; font-weight:700; margin-top: 8px; }
-
-    pre#testOutput {
-      max-height: 40vh; overflow:auto; white-space: pre-wrap;
-      background: color-mix(in oklab, canvas, canvastext 3%);
-      border: 1px dashed rgba(127,127,127,.35); padding: 12px; border-radius: 10px;
-      margin-top: 12px;
-    }
-  </style>
+      .row-selectors, .column-selectors {
+        position: absolute; /* Positioned relative to farm-grid-container */
+        display: flex;
+        z-index: 50;
+      }
+      .row-selectors {
+        flex-direction: column;
+        justify-content: space-around;
+      }
+      .column-selectors {
+        flex-direction: row;
+        justify-content: space-around;
+      }
+      .selector-btn {
+        background: rgba(42, 157, 143, 0.7);
+        color: white;
+        width: 22px;
+        height: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: bold;
+        border: none;
+        line-height: 1;
+      }
+      .selector-btn:hover {
+        background: rgba(42, 157, 143, 1);
+      }
+      .selector-btn.active {
+        background: #e76f51; /* A distinct color for active selection */
+      }
+    </style>
 </head>
 <body>
-  <main class="wrap">
-    <h1>CaFarmer</h1>
+    <div class="container">
+        <header>
+            <h1>California Climate Farmer <span class="badge">Year <span id="year-display">1</span></span> <span class="badge">Season: <span id="season-display">Spring</span></span></h1>
+            <div class="btn-group">
+                <button id="pause-btn" class="btn">Pause</button>
+                <!-- Dashboard button will be added here by JS -->
+                <button id="help-btn" class="btn secondary">Help</button>
+            </div>
+        </header>
 
-    <!-- MENU -->
-    <section id="menu" class="card" aria-labelledby="menuTitle">
-      <h2 id="menuTitle" style="margin-top:0">Choose an action</h2>
-      <div class="row">
-        <button id="startGameBtn">▶︎ Play regular game</button>
-        <button id="runTestsBtn">🧪 Run tests</button>
-        <span class="spacer"></span>
-        <span id="menuStatus" aria-live="polite"></span>
-      </div>
-    </section>
+        <div class="main-content">
+            <div class="farm-grid-container">
+                <!-- Grid and selectors will be dynamically managed -->
+                <canvas id="farm-grid"></canvas> <!-- IMPORTANT: ID is farm-grid -->
+                <div class="overlay-controls">
+                    <select id="overlay-select">
+                        <option value="crop">Crop Type</option>
+                        <option value="water">Water Status</option>
+                        <option value="soil">Soil Health</option>
+                        <option value="yield">Expected Yield</option>
+                    </select>
+                </div>
+                <div class="grid-legend" id="grid-legend"></div>
+                <div id="tooltip" class="tooltip"></div>
+                <div id="cell-info" class="cell-info-panel">
+                    <h2>Plot Information</h2>
+                    <div id="cell-details"></div>
+                    <div class="crop-selection">
+                        <h3>Plant Crop</h3>
+                        <div id="crop-options"></div>
+                    </div>
+                    <div class="cell-actions">
+                        <button id="irrigate-btn" class="btn">Irrigate</button>
+                        <button id="fertilize-btn" class="btn">Fertilize</button>
+                        <button id="harvest-btn" class="btn">Harvest</button>
+                        <button id="close-cell-info" class="btn secondary">Close</button>
+                    </div>
+                </div>
+                 <div id="bulk-action-panel" class="bulk-action-panel"></div>
+                 <div class="hotkey-info"></div>
+            </div>
 
-    <!-- GAME -->
-    <section id="game" class="card" aria-labelledby="gameTitle">
-      <div class="row" id="hud">
-        <strong id="gameTitle">Grid Overlay:</strong>
-        <label><input type="radio" name="overlay" value="none" checked> None</label>
-        <label><input type="radio" name="overlay" value="soil"> Soil</label>
-        <label><input type="radio" name="overlay" value="water"> Water</label>
-        <label><input type="radio" name="overlay" value="yield"> Yield</label>
-        <span class="spacer"></span>
-        <span id="fps">— fps</span>
-        <button id="backToMenuBtn" title="Return to menu">⏮︎ Menu</button>
-      </div>
-      <canvas id="farmCanvas"></canvas>
-      <p id="error" role="alert"></p>
-    </section>
+            <div class="sidebar">
+                <div class="hud-panel">
+                    <h2>Farm Status</h2>
+                    <div class="stat"><span>Bank Balance:</span><span class="stat-value">$<span id="balance">100000</span></span></div>
+                    <div class="stat"><span>Farm Value:</span><span class="stat-value">$<span id="farm-value">250000</span></span></div>
+                    <div class="stat"><span>Farm Health:</span><span class="stat-value"><span id="farm-health">85</span>%</span></div>
+                    <div class="stat"><span>Water Reserve:</span><span class="stat-value"><span id="water-reserve">75</span>%</span></div>
+                    <div class="stat"><span>Date:</span><span class="stat-value" id="date-display">Spring, Year 1</span></div>
+                    <div class="speed-control"><span>Speed:</span><input type="range" id="speed-slider" min="1" max="10" value="5"><span id="speed-value">5x</span></div>
+                </div>
+                <div class="control-panel">
+                    <h2>Actions</h2>
+                    <p>Click grid or use selectors/hotkeys. Hotkeys: (I)rrigate, (F)ertilize, (H)arvest, (M)ode, (R)epeat, (D)ashboard, (Esc)Clear.</p>
+                    <div class="btn-group">
+                        <button id="market-btn" class="btn">Market</button>
+                        <button id="research-btn" class="btn secondary">Research</button>
+                    </div>
+                </div>
+                <div class="events-panel">
+                    <h2>Events & Notifications</h2>
+                    <div id="events-container">
+                        <div class="event"><div class="event-date">Loading...</div><div>Game initializing...</div></div>
+                    </div>
+                </div>
+                <div class="tech-panel">
+                    <h2>Researched Tech</h2>
+                    <div id="tech-container"><p>None</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-    <!-- TESTS -->
-    <section id="tests" class="card" aria-labelledby="testsTitle">
-      <div class="row">
-        <h2 id="testsTitle" style="margin:0">Tests</h2>
-        <span class="spacer"></span>
-        <button id="backFromTestsBtn">⏮︎ Menu</button>
-      </div>
-      <pre id="testOutput" aria-live="polite">Ready.</pre>
-    </section>
-  </main>
+    <!-- Modals remain outside the main layout -->
+    <div id="help-modal" class="modal"><div class="modal-content"><span class="close">×</span><h2>Help</h2><p>Manage your farm against climate change challenges.</p></div></div>
+    <div id="research-modal" class="modal"><div class="modal-content"><span class="close">×</span><h2>Research & Technology</h2><div id="research-options"></div></div></div>
+    <div id="market-modal" class="modal"><div class="modal-content"><span class="close">×</span><h2>Market Prices</h2><div id="market-info"></div></div></div>
 
-  <!-- Keep the module after the DOM; main.js also gates on DOMContentLoaded -->
-  <script type="module" src="./scripts/main.js"></script>
+   <!-- Splash Screen -->
+   <div id="splash-screen" class="splash-container">
+        <div class="splash-content">
+            <h1>California Climate Farmer</h1>
+            <p>Manage your farm and adapt to climate challenges.</p>
+            <div class="splash-options">
+                <button id="regular-game-btn" class="btn">Start Regular Game</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Module Scripts -->
+    <script type="module" src="scripts/main.js"></script>
 </body>
 </html>
