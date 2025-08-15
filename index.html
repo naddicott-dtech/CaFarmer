@@ -6,43 +6,84 @@
   <title>CaFarmer</title>
   <style>
     :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
-    body { display: grid; place-items: center; font-family: system-ui, sans-serif; }
-    #app { width: min(92vw, 960px); }
-    #hud { display: flex; gap: .75rem; align-items: center; margin: .5rem 0 1rem; }
-    #farmCanvas {
-      display: block;
-      width: 100%;
-      height: min(70vh, 720px);    /* CSS size; JS will set pixel buffer size */
-      border: 1px solid rgba(127,127,127,.4);
-      border-radius: 12px;
-      background: canvas;
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    .wrap { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+    h1 { margin: 0 0 16px; }
+    .card { border: 1px solid rgba(127,127,127,.35); border-radius: 12px; padding: 16px; }
+    .row { display: flex; gap: 12px; align-items: center; }
+    .spacer { flex: 1; }
+    button {
+      cursor: pointer; border: 1px solid rgba(127,127,127,.35);
+      border-radius: 10px; padding: 10px 14px; background: canvas; font-weight: 600;
     }
-    #error {
-      color: #b00020;
-      font-weight: 600;
-      display: none;
+    button:disabled { opacity: .6; cursor: not-allowed; }
+
+    /* Sections */
+    #menu { display: block; margin-bottom: 16px; }
+    #game { display: none; }
+    #tests { display: none; }
+
+    /* Canvas */
+    #farmCanvas {
+      display: block; width: 100%; height: min(70vh, 720px);
+      border: 1px solid rgba(127,127,127,.35); border-radius: 12px; background: canvas;
+    }
+
+    #error { display:none; color:#b00020; font-weight:700; margin-top: 8px; }
+
+    pre#testOutput {
+      max-height: 40vh; overflow:auto; white-space: pre-wrap;
+      background: color-mix(in oklab, canvas, canvastext 3%);
+      border: 1px dashed rgba(127,127,127,.35); padding: 12px; border-radius: 10px;
+      margin-top: 12px;
     }
   </style>
 </head>
 <body>
-  <main id="app">
+  <main class="wrap">
     <h1>CaFarmer</h1>
-    <div id="hud">
-      <span>Grid Overlay:</span>
-      <label><input type="radio" name="overlay" value="none" checked> None</label>
-      <label><input type="radio" name="overlay" value="soil"> Soil</label>
-      <label><input type="radio" name="overlay" value="water"> Water</label>
-      <label><input type="radio" name="overlay" value="yield"> Yield</label>
-      <span id="fps" style="margin-left:auto">— fps</span>
-    </div>
 
-    <!-- IMPORTANT: The canvas exists before scripts run -->
-    <canvas id="farmCanvas"></canvas>
-    <p id="error" role="alert"></p>
+    <!-- MENU -->
+    <section id="menu" class="card" aria-labelledby="menuTitle">
+      <h2 id="menuTitle" style="margin-top:0">Choose an action</h2>
+      <div class="row">
+        <button id="startGameBtn">▶︎ Play regular game</button>
+        <button id="runTestsBtn">🧪 Run tests</button>
+        <span class="spacer"></span>
+        <span id="menuStatus" aria-live="polite"></span>
+      </div>
+    </section>
+
+    <!-- GAME -->
+    <section id="game" class="card" aria-labelledby="gameTitle">
+      <div class="row" id="hud">
+        <strong id="gameTitle">Grid Overlay:</strong>
+        <label><input type="radio" name="overlay" value="none" checked> None</label>
+        <label><input type="radio" name="overlay" value="soil"> Soil</label>
+        <label><input type="radio" name="overlay" value="water"> Water</label>
+        <label><input type="radio" name="overlay" value="yield"> Yield</label>
+        <span class="spacer"></span>
+        <span id="fps">— fps</span>
+        <button id="backToMenuBtn" title="Return to menu">⏮︎ Menu</button>
+      </div>
+      <canvas id="farmCanvas"></canvas>
+      <p id="error" role="alert"></p>
+    </section>
+
+    <!-- TESTS -->
+    <section id="tests" class="card" aria-labelledby="testsTitle">
+      <div class="row">
+        <h2 id="testsTitle" style="margin:0">Tests</h2>
+        <span class="spacer"></span>
+        <button id="backFromTestsBtn">⏮︎ Menu</button>
+      </div>
+      <pre id="testOutput" aria-live="polite">Ready.</pre>
+    </section>
   </main>
 
-  <!-- Keep the module after the canvas; also guards on DOMContentLoaded in main.js -->
+  <!-- Keep the module after the DOM; main.js also gates on DOMContentLoaded -->
   <script type="module" src="./scripts/main.js"></script>
 </body>
 </html>
